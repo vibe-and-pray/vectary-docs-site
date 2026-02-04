@@ -436,6 +436,22 @@ function convertEscapedBrackets(content) {
 }
 
 /**
+ * Fix figures inside list items - move them outside the list
+ * MDX doesn't support block elements inside list items
+ */
+function fixFiguresInLists(content) {
+  // Pattern: list item with indented figure on next lines
+  // Match: "* text\n\n    <figure>...</figure>"
+  const listFigureRegex = /^(\*\s+[^\n]+)<br\s*\/?>\s*\n\n(\s{4}<figure>[\s\S]*?<\/figure>)/gm;
+
+  return content.replace(listFigureRegex, (match, listItem, figure) => {
+    // Remove the indentation from figure and place it after the list item
+    const cleanFigure = figure.replace(/^\s{4}/gm, '');
+    return `${listItem}\n\n${cleanFigure}`;
+  });
+}
+
+/**
  * Convert void HTML tags to self-closing for JSX/MDX compatibility
  */
 function convertVoidTags(content) {
@@ -673,6 +689,7 @@ function convertFile(content, filePath) {
   result = escapeInlineCode(result);
   result = convertEscapedBrackets(result);
   result = convertVoidTags(result);
+  result = fixFiguresInLists(result);
   result = fixInternalLinks(result);
   result = processFrontmatter(result, filePath);
 
