@@ -296,6 +296,15 @@ function removeHtmlEntities(content) {
 }
 
 /**
+ * Convert GitBook escaped brackets \[ and \] to regular brackets
+ */
+function convertEscapedBrackets(content) {
+  return content
+    .replace(/\\\[/g, '[')
+    .replace(/\\\]/g, ']');
+}
+
+/**
  * Fix asset paths from GitBook format to Starlight format
  */
 function fixAssetPath(originalPath) {
@@ -344,42 +353,48 @@ function processFrontmatter(content, filePath) {
   const fm = {};
   let currentKey = null;
   let currentValue = [];
-  
+  let multilineMode = null; // '>-', '>', '|', or null
+
   const lines = frontmatterRaw.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
     // Check if this is a new key (starts with word followed by colon)
     const keyMatch = line.match(/^(\w+):\s*(.*)?$/);
-    
+
     if (keyMatch && !line.startsWith('  ')) {
       // Save previous key-value if exists
       if (currentKey) {
-        fm[currentKey] = currentValue.length > 1 
-          ? currentValue.join('\n').trim() 
-          : currentValue[0]?.trim() || '';
+        // For >- and > modes, join with spaces; for | mode, join with newlines
+        const joiner = (multilineMode === '|') ? '\n' : ' ';
+        fm[currentKey] = currentValue.length > 0
+          ? currentValue.join(joiner).trim()
+          : '';
       }
-      
+
       currentKey = keyMatch[1];
       const value = keyMatch[2] || '';
-      
+
       // Check for multiline indicators
       if (value === '>-' || value === '|' || value === '>') {
+        multilineMode = value;
         currentValue = [];
       } else {
+        multilineMode = null;
         currentValue = [value];
       }
     } else if (currentKey && (line.startsWith('  ') || line.trim() === '')) {
       // Continuation of multiline value
-      currentValue.push(line.replace(/^  /, ''));
+      currentValue.push(line.replace(/^  /, '').trim());
     }
   }
-  
+
   // Save last key-value
   if (currentKey) {
-    fm[currentKey] = currentValue.length > 1 
-      ? currentValue.join('\n').trim() 
-      : currentValue[0]?.trim() || '';
+    const joiner = (multilineMode === '|') ? '\n' : ' ';
+    fm[currentKey] = currentValue.length > 0
+      ? currentValue.join(joiner).trim()
+      : '';
   }
 
   // Build new frontmatter
@@ -488,6 +503,7 @@ function convertFile(content, filePath) {
   result = convertMarks(result);
   result = convertMentionLinks(result);
   result = removeHtmlEntities(result);
+  result = convertEscapedBrackets(result);
   result = fixInternalLinks(result);
   result = processFrontmatter(result, filePath);
 
