@@ -33,7 +33,20 @@ export default defineConfig({
         {
           label: 'Design Process',
           collapsed: true,
-          autogenerate: { directory: 'documentation/design-process' },
+          items: [
+            { label: 'Design mode', autogenerate: { directory: 'documentation/design-process/design-mode' } },
+            { label: 'Materials and textures', autogenerate: { directory: 'documentation/design-process/materials-and-textures' } },
+            { slug: 'documentation/design-process/animated-materials' },
+            { slug: 'documentation/design-process/decals' },
+            { slug: 'documentation/design-process/camera' },
+            { slug: 'documentation/design-process/environment' },
+            { slug: 'documentation/design-process/background' },
+            { slug: 'documentation/design-process/ground-plane' },
+            { label: 'Effects', autogenerate: { directory: 'documentation/design-process/effects' } },
+            { label: 'Control bar', autogenerate: { directory: 'documentation/design-process/control-bar' } },
+            { label: 'Libraries', autogenerate: { directory: 'documentation/design-process/libraries' } },
+            { label: 'Edit mode', autogenerate: { directory: 'documentation/design-process/edit-mode' } },
+          ],
         },
         {
           label: 'Sharing & Exporting',
