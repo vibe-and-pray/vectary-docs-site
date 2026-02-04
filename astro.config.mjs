@@ -61,7 +61,29 @@ export default defineConfig({
                 },
               ],
             },
-            { label: 'Materials and textures', collapsed: true, autogenerate: { directory: 'documentation/design-process/materials-and-textures' } },
+            {
+              label: 'Materials and textures',
+              collapsed: true,
+              items: [
+                { slug: 'documentation/design-process/materials-and-textures', label: 'Overview' },
+                {
+                  label: 'Basic materials',
+                  collapsed: true,
+                  autogenerate: { directory: 'documentation/design-process/materials-and-textures/basic-materials' },
+                },
+                {
+                  label: 'Advanced materials',
+                  collapsed: true,
+                  autogenerate: { directory: 'documentation/design-process/materials-and-textures/advanced-materials' },
+                },
+                {
+                  label: 'Baked textures',
+                  collapsed: true,
+                  autogenerate: { directory: 'documentation/design-process/materials-and-textures/baked-textures' },
+                },
+                { slug: 'documentation/design-process/materials-and-textures/importing-own-textures' },
+              ],
+            },
             { slug: 'documentation/design-process/animated-materials' },
             { slug: 'documentation/design-process/decals' },
             { slug: 'documentation/design-process/camera' },
