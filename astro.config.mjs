@@ -38,7 +38,6 @@ export default defineConfig({
               label: 'Design mode',
               collapsed: true,
               items: [
-                { slug: 'documentation/design-process/design-mode', label: 'Design mode' },
                 { slug: 'documentation/design-process/design-mode/selections-tools' },
                 { slug: 'documentation/design-process/design-mode/primitives' },
                 { slug: 'documentation/design-process/design-mode/3d-text' },
