@@ -537,13 +537,12 @@ function fixMarkdownImagePaths(content) {
  * Fix internal links - remove .md extension and adjust paths
  */
 function fixInternalLinks(content, currentFilePath) {
-  // Fix markdown links to .md files (with or without anchors)
-  const linkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
-
   // Get current file name without extension for self-reference detection
   const currentFileName = currentFilePath ? path.basename(currentFilePath, '.md') : '';
 
-  return content.replace(linkRegex, (match, url, anchor) => {
+  // First pass: fix .md links
+  const mdLinkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
+  content = content.replace(mdLinkRegex, (match, url, anchor) => {
     // Don't modify external links
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return match;
@@ -552,13 +551,34 @@ function fixInternalLinks(content, currentFilePath) {
     // Remove .md extension
     let cleanUrl = url.replace(/\.md$/, '');
 
+    return processInternalLink(cleanUrl, anchor, currentFileName);
+  });
+
+  // Second pass: fix sibling links without .md (already processed by convertMentionLinks)
+  // Match markdown links that are simple filenames (no path, no extension, no http)
+  const siblingLinkRegex = /\]\(([a-z0-9-]+)(#[^)]+)?\)/gi;
+  content = content.replace(siblingLinkRegex, (match, url, anchor) => {
+    // Skip if already has ../ or is an external link or has a path
+    if (url.startsWith('http') || url.startsWith('.') || url.startsWith('/') || url.includes('/')) {
+      return match;
+    }
+
+    // Skip if it's just an anchor
+    if (url.startsWith('#')) {
+      return match;
+    }
+
+    return processInternalLink(url, anchor, currentFileName);
+  });
+
+  return content;
+
+  function processInternalLink(cleanUrl, anchor, currentFileName) {
     // Get the linked file name
     const linkedFileName = path.basename(cleanUrl);
 
     // Fix anchors that reference tab titles (e.g., #green-dot)
-    // These don't work in Starlight, so point to the parent section instead
-    if (anchor) {
-      // Map known tab-title anchors to their parent section anchors
+    const mappedAnchor = anchor ? (function() {
       const tabAnchorMap = {
         '#green-dot': '#project-tips',
         '#order-of-workspaces': '#workspace-tips',
@@ -566,19 +586,21 @@ function fixInternalLinks(content, currentFilePath) {
         '#project-movement': '#project-tips',
         '#project-selection': '#project-tips',
       };
+      return tabAnchorMap[anchor.toLowerCase()] || anchor;
+    })() : '';
 
-      const mappedAnchor = tabAnchorMap[anchor.toLowerCase()] || anchor;
-
-      // If linking to the same file, use just the anchor
-      if (linkedFileName === currentFileName) {
-        return `](${mappedAnchor})`;
-      }
-
-      return `](${cleanUrl}${mappedAnchor})`;
+    // If linking to the same file, use just the anchor
+    if (linkedFileName === currentFileName) {
+      return `](${mappedAnchor || '#'})`;
     }
 
-    return `](${cleanUrl})`;
-  });
+    // For sibling files (same directory, no path prefix), add ../
+    if (!cleanUrl.includes('/')) {
+      cleanUrl = '../' + cleanUrl;
+    }
+
+    return `](${cleanUrl}${mappedAnchor})`;
+  }
 }
 
 /**
