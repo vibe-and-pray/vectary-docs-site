@@ -773,8 +773,9 @@ async function processDir(sourceBase, outputBase, relativePath) {
 
     // Skip .gitbook directory (we'll copy assets separately)
     if (entry.name === '.gitbook') {
-      await copyAssets(path.join(currentSource, entry.name, 'assets'), 
-                       path.resolve(outputBase, '..', 'assets', 'gitbook'));
+      // Copy to src/assets/gitbook (not src/content/assets) to match ~/assets/gitbook path
+      await copyAssets(path.join(currentSource, entry.name, 'assets'),
+                       path.resolve(outputBase, '..', '..', 'assets', 'gitbook'));
       continue;
     }
 
