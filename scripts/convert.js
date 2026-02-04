@@ -147,10 +147,30 @@ function convertContentRefs(content) {
  * Convert {% embed url="..." %} to appropriate iframe/embed
  */
 function convertEmbeds(content) {
-  // Support optional attributes after URL like fullWidth="true"
+  // First handle embeds with caption: {% embed url="..." %} caption {% endembed %}
+  const embedWithCaptionRegex = /\{%\s*embed\s+url="([^"]+)"[^%]*%\}([\s\S]*?)\{%\s*endembed\s*%\}/g;
+
+  content = content.replace(embedWithCaptionRegex, (match, url, caption) => {
+    const iframe = createIframe(url);
+    const trimmedCaption = caption.trim();
+    if (trimmedCaption) {
+      return `${iframe}\n<figcaption>${trimmedCaption}</figcaption>`;
+    }
+    return iframe;
+  });
+
+  // Then handle simple embeds without endembed
   const embedRegex = /\{%\s*embed\s+url="([^"]+)"[^%]*%\}/g;
 
   return content.replace(embedRegex, (match, url) => {
+    return createIframe(url);
+  });
+}
+
+/**
+ * Create iframe HTML for a given URL
+ */
+function createIframe(url) {
     // YouTube
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeId(url);
@@ -179,15 +199,14 @@ function convertEmbeds(content) {
 ></iframe>`;
     }
 
-    // Generic embed - use iframe
-    return `<iframe 
-  width="100%" 
-  height="400" 
-  src="${url}" 
-  title="Embedded content" 
+  // Generic embed - use iframe
+  return `<iframe
+  width="100%"
+  height="400"
+  src="${url}"
+  title="Embedded content"
   frameborder="0"
 ></iframe>`;
-  });
 }
 
 /**
