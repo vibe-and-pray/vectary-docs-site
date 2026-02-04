@@ -358,10 +358,35 @@ function convertMentionLinks(content) {
 }
 
 /**
- * Remove &#x20; HTML entities
+ * Remove/decode HTML entities
  */
 function removeHtmlEntities(content) {
-  return content.replace(/&#x20;/g, ' ');
+  return content
+    .replace(/&#x20;/g, ' ')
+    .replace(/&#x3C;/gi, '<')
+    .replace(/&#x3E;/gi, '>')
+    .replace(/&#60;/g, '<')
+    .replace(/&#62;/g, '>');
+}
+
+/**
+ * Convert <pre><code> blocks to markdown code blocks
+ */
+function convertPreCodeBlocks(content) {
+  // Pattern: <pre class="language-xxx"><code class="lang-xxx">...</code></pre>
+  const preCodeRegex = /<pre[^>]*class="language-(\w+)"[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+
+  return content.replace(preCodeRegex, (match, language, code) => {
+    // Remove <strong> tags and other HTML from code
+    let cleanCode = code
+      .replace(/<\/?strong>/gi, '')
+      .replace(/<\/?em>/gi, '')
+      .replace(/<\/?b>/gi, '')
+      .replace(/<\/?i>/gi, '')
+      .trim();
+
+    return '```' + language + '\n' + cleanCode + '\n```';
+  });
 }
 
 /**
@@ -606,6 +631,7 @@ function convertFile(content, filePath) {
   result = convertMarks(result);
   result = convertMentionLinks(result);
   result = removeHtmlEntities(result);
+  result = convertPreCodeBlocks(result);
   result = convertEscapedBrackets(result);
   result = convertVoidTags(result);
   result = fixInternalLinks(result);
