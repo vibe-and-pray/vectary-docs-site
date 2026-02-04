@@ -64,8 +64,8 @@ function convertHints(content) {
  * Convert {% tabs %} {% tab title="..." %} to Starlight <Tabs><TabItem>
  */
 function convertTabs(content) {
-  // First, find all tabs blocks
-  const tabsRegex = /\{%\s*tabs\s*%\}([\s\S]*?)\{%\s*endtabs\s*%\}/g;
+  // First, find all tabs blocks (with optional attributes like fullWidth="true")
+  const tabsRegex = /\{%\s*tabs[^%]*%\}([\s\S]*?)\{%\s*endtabs\s*%\}/g;
 
   return content.replace(tabsRegex, (match, tabsContent) => {
     // Find individual tabs
