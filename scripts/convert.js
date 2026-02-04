@@ -364,35 +364,163 @@ function convertMarks(content) {
 }
 
 /**
- * Convert [text](url "mention") to regular link
+ * Resolve all internal links in content
+ * Handles: markdown links, mention links, HTML links
+ *
+ * @param {string} content - File content
+ * @param {string} currentFilePath - Path to current file (e.g., "documentation/design-process/background.md")
  */
-function convertMentionLinks(content) {
-  const mentionRegex = /\[([^\]]+)\]\(([^)]+)\s+"mention"\)/g;
+function resolveLinks(content, currentFilePath) {
+  // Determine current file's URL structure
+  const isIndex = path.basename(currentFilePath).toLowerCase() === 'readme.md';
+  const currentDir = path.dirname(currentFilePath);
+  const currentFileName = path.basename(currentFilePath, '.md').toLowerCase();
 
-  content = content.replace(mentionRegex, (match, text, url) => {
-    // Remove .md extension for internal links
-    const cleanUrl = url.replace(/\.md$/, '');
+  // Map of GitBook tab anchors to real section anchors
+  const tabAnchorMap = {
+    '#green-dot': '#project-tips',
+    '#order-of-workspaces': '#workspace-tips',
+    '#workspace-id': '#workspace-tips',
+    '#project-movement': '#project-tips',
+    '#project-selection': '#project-tips',
+  };
 
-    // If the link text is just the filename (e.g., "snapping.md"), make it readable
-    let cleanText = text;
-    if (text.endsWith('.md')) {
-      cleanText = text.replace(/\.md$/, '').replace(/-/g, ' ');
-      // Capitalize first letter
-      cleanText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+  /**
+   * Resolve a link URL relative to current file
+   */
+  function resolveUrl(rawUrl, anchor) {
+    // Handle anchor-only links
+    if (!rawUrl || rawUrl === '') {
+      const mappedAnchor = anchor ? (tabAnchorMap[anchor.toLowerCase()] || anchor) : '';
+      return mappedAnchor || '#';
     }
 
-    return `[${cleanText}](${cleanUrl})`;
+    // Don't modify external links
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+      return rawUrl + (anchor || '');
+    }
+
+    // Handle absolute paths (starting with /)
+    if (rawUrl.startsWith('/')) {
+      const cleanUrl = rawUrl.replace(/\.md$/, '');
+      const mappedAnchor = anchor ? (tabAnchorMap[anchor.toLowerCase()] || anchor) : '';
+      return cleanUrl + mappedAnchor;
+    }
+
+    // Map tab anchors
+    const mappedAnchor = anchor ? (tabAnchorMap[anchor.toLowerCase()] || anchor) : '';
+
+    // Remove .md extension and normalize ./ prefix
+    let targetPath = rawUrl.replace(/\.md$/, '').replace(/^\.\//, '');
+
+    // Resolve target path relative to current directory
+    const resolvedTarget = path.normalize(path.join(currentDir, targetPath));
+
+    // Check if linking to self
+    const targetFileName = path.basename(resolvedTarget).toLowerCase();
+    const targetDir = path.dirname(resolvedTarget);
+    if ((targetFileName === currentFileName || (isIndex && targetFileName === 'readme')) && targetDir === currentDir) {
+      return mappedAnchor || '#';
+    }
+
+    // Calculate the URL path for current file
+    // README.md -> folder URL (e.g., /folder)
+    // other.md -> file URL (e.g., /folder/other)
+    let currentUrlPath;
+    if (isIndex) {
+      // Index file: URL = directory path
+      currentUrlPath = currentDir;
+    } else {
+      // Regular file: URL = directory + filename (without extension)
+      currentUrlPath = path.join(currentDir, path.basename(currentFilePath, '.md'));
+    }
+
+    // Calculate target URL path
+    // If target is README (index), URL is the folder
+    // Otherwise URL is folder/filename
+    let targetUrlPath;
+    const targetBasename = path.basename(targetPath).toLowerCase();
+    if (targetBasename === 'readme') {
+      targetUrlPath = path.dirname(resolvedTarget);
+    } else {
+      targetUrlPath = resolvedTarget;
+    }
+
+    // Calculate relative path from current URL to target URL
+    // For index files, we calculate from the directory itself
+    // For regular files, we calculate from the file's "parent" (since URL is /dir/file)
+    const baseForRelative = isIndex ? currentUrlPath : path.dirname(currentUrlPath);
+    const relativePath = path.relative(baseForRelative, targetUrlPath);
+
+    // Convert backslashes to forward slashes (Windows compatibility)
+    let finalPath = relativePath.replace(/\\/g, '/');
+
+    // Ensure we don't have empty path
+    if (!finalPath) {
+      finalPath = '.';
+    }
+
+    return finalPath + mappedAnchor;
+  }
+
+  /**
+   * Clean up link text (for mention links where text = filename)
+   */
+  function cleanLinkText(text) {
+    if (text.endsWith('.md')) {
+      let clean = text.replace(/\.md$/, '').replace(/-/g, ' ');
+      return clean.charAt(0).toUpperCase() + clean.slice(1);
+    }
+    // Also handle anchor-only text like "#settings"
+    if (text.startsWith('#')) {
+      return text;
+    }
+    return text;
+  }
+
+  // 1. Handle mention links with anchor: [#anchor](file.md#anchor "mention")
+  const mentionWithAnchorRegex = /\[([^\]]+)\]\(([^)#]*)(#[^)\s]+)?\s+"mention"\)/g;
+  content = content.replace(mentionWithAnchorRegex, (match, text, url, anchor) => {
+    const cleanText = cleanLinkText(text);
+    const resolvedUrl = resolveUrl(url, anchor);
+    return `[${cleanText}](${resolvedUrl})`;
   });
 
-  // Also handle HTML data-mention links: <a data-mention href="file.md">file.md</a>
+  // 2. Handle HTML data-mention links: <a data-mention href="file.md">text</a>
   const htmlMentionRegex = /<a\s+data-mention\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
-
   content = content.replace(htmlMentionRegex, (match, href, text) => {
-    const cleanHref = href.replace(/\.md$/, '');
-    const cleanText = text.replace(/\.md$/, '').replace(/-/g, ' ');
-    // Capitalize first letter
-    const capitalizedText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
-    return `[${capitalizedText}](${cleanHref})`;
+    // Parse href for anchor
+    const anchorMatch = href.match(/(#[^"]+)$/);
+    const anchor = anchorMatch ? anchorMatch[1] : null;
+    const url = anchor ? href.replace(anchor, '') : href;
+
+    const cleanText = cleanLinkText(text);
+    const resolvedUrl = resolveUrl(url, anchor);
+    return `[${cleanText}](${resolvedUrl})`;
+  });
+
+  // 3. Handle regular HTML links: <a href="file.md">text</a>
+  const htmlLinkRegex = /<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+  content = content.replace(htmlLinkRegex, (match, href, text) => {
+    // Skip external links
+    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:')) {
+      return match;
+    }
+
+    // Parse href for anchor
+    const anchorMatch = href.match(/(#[^"]+)$/);
+    const anchor = anchorMatch ? anchorMatch[1] : null;
+    const url = anchor ? href.replace(anchor, '') : href;
+
+    const resolvedUrl = resolveUrl(url, anchor);
+    return `[${text}](${resolvedUrl})`;
+  });
+
+  // 4. Handle regular markdown links with .md: [text](url.md) or [text](url.md#anchor)
+  const mdLinkRegex = /\[([^\]]+)\]\(([^)#]+\.md)(#[^)]+)?\)/g;
+  content = content.replace(mdLinkRegex, (match, text, url, anchor) => {
+    const resolvedUrl = resolveUrl(url, anchor);
+    return `[${text}](${resolvedUrl})`;
   });
 
   return content;
@@ -533,51 +661,6 @@ function fixMarkdownImagePaths(content) {
   return content;
 }
 
-/**
- * Fix internal links - remove .md extension
- * With trailingSlash: 'never' in Astro config, relative links work as expected
- */
-function fixInternalLinks(content, currentFilePath) {
-  // Get current file name without extension for self-reference detection
-  const currentFileName = currentFilePath ? path.basename(currentFilePath, '.md') : '';
-
-  // Fix .md links - just remove the extension
-  const mdLinkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
-  content = content.replace(mdLinkRegex, (match, url, anchor) => {
-    // Don't modify external links
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return match;
-    }
-
-    // Remove .md extension
-    const cleanUrl = url.replace(/\.md$/, '');
-    const linkedFileName = path.basename(cleanUrl);
-
-    // Fix anchors that reference tab titles
-    const mappedAnchor = mapAnchor(anchor);
-
-    // If linking to the same file, use just the anchor
-    if (linkedFileName === currentFileName) {
-      return `](${mappedAnchor || '#'})`;
-    }
-
-    return `](${cleanUrl}${mappedAnchor})`;
-  });
-
-  return content;
-
-  function mapAnchor(anchor) {
-    if (!anchor) return '';
-    const tabAnchorMap = {
-      '#green-dot': '#project-tips',
-      '#order-of-workspaces': '#workspace-tips',
-      '#workspace-id': '#workspace-tips',
-      '#project-movement': '#project-tips',
-      '#project-selection': '#project-tips',
-    };
-    return tabAnchorMap[anchor.toLowerCase()] || anchor;
-  }
-}
 
 /**
  * Process frontmatter - convert GitBook frontmatter to Starlight format
@@ -769,7 +852,7 @@ function convertFile(content, filePath) {
   result = convertAlignedDivs(result);
   result = convertInlineImages(result);
   result = convertMarks(result);
-  result = convertMentionLinks(result);
+  result = resolveLinks(result, filePath);
   result = removeHtmlEntities(result);
   result = fixMalformedBold(result);
   result = convertPreCodeBlocks(result);
@@ -778,7 +861,6 @@ function convertFile(content, filePath) {
   result = convertVoidTags(result);
   result = fixFiguresInLists(result);
   result = fixMarkdownImagePaths(result);
-  result = fixInternalLinks(result, filePath);
   result = processFrontmatter(result, filePath);
 
   // Detect and add imports
