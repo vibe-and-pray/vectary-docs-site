@@ -477,6 +477,28 @@ function fixAssetPath(originalPath) {
 }
 
 /**
+ * Fix markdown image paths with gitbook assets
+ * Handles: ![alt](<../.gitbook/assets/file.png>) and ![alt](../.gitbook/assets/file.png)
+ */
+function fixMarkdownImagePaths(content) {
+  // Pattern with angle brackets: ![...](<...gitbook/assets/...>)
+  const imgWithBracketsRegex = /!\[([^\]]*)\]\(<([^>]*\.gitbook\/assets\/[^>]+)>\)/g;
+  content = content.replace(imgWithBracketsRegex, (match, alt, src) => {
+    const filename = path.basename(src);
+    return `![${alt}](~/assets/gitbook/${filename})`;
+  });
+
+  // Pattern without angle brackets: ![...](...gitbook/assets/...)
+  const imgRegex = /!\[([^\]]*)\]\(([^)]*\.gitbook\/assets\/[^)]+)\)/g;
+  content = content.replace(imgRegex, (match, alt, src) => {
+    const filename = path.basename(src);
+    return `![${alt}](~/assets/gitbook/${filename})`;
+  });
+
+  return content;
+}
+
+/**
  * Fix internal links - remove .md extension and adjust paths
  */
 function fixInternalLinks(content) {
@@ -690,6 +712,7 @@ function convertFile(content, filePath) {
   result = convertEscapedBrackets(result);
   result = convertVoidTags(result);
   result = fixFiguresInLists(result);
+  result = fixMarkdownImagePaths(result);
   result = fixInternalLinks(result);
   result = processFrontmatter(result, filePath);
 
