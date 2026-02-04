@@ -372,7 +372,16 @@ function convertMentionLinks(content) {
   content = content.replace(mentionRegex, (match, text, url) => {
     // Remove .md extension for internal links
     const cleanUrl = url.replace(/\.md$/, '');
-    return `[${text}](${cleanUrl})`;
+
+    // If the link text is just the filename (e.g., "snapping.md"), make it readable
+    let cleanText = text;
+    if (text.endsWith('.md')) {
+      cleanText = text.replace(/\.md$/, '').replace(/-/g, ' ');
+      // Capitalize first letter
+      cleanText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+    }
+
+    return `[${cleanText}](${cleanUrl})`;
   });
 
   // Also handle HTML data-mention links: <a data-mention href="file.md">file.md</a>
@@ -381,7 +390,9 @@ function convertMentionLinks(content) {
   content = content.replace(htmlMentionRegex, (match, href, text) => {
     const cleanHref = href.replace(/\.md$/, '');
     const cleanText = text.replace(/\.md$/, '').replace(/-/g, ' ');
-    return `<a href="${cleanHref}">${cleanText}</a>`;
+    // Capitalize first letter
+    const capitalizedText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+    return `[${capitalizedText}](${cleanHref})`;
   });
 
   return content;
