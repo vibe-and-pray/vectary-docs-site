@@ -369,11 +369,22 @@ function convertMarks(content) {
 function convertMentionLinks(content) {
   const mentionRegex = /\[([^\]]+)\]\(([^)]+)\s+"mention"\)/g;
 
-  return content.replace(mentionRegex, (match, text, url) => {
+  content = content.replace(mentionRegex, (match, text, url) => {
     // Remove .md extension for internal links
     const cleanUrl = url.replace(/\.md$/, '');
     return `[${text}](${cleanUrl})`;
   });
+
+  // Also handle HTML data-mention links: <a data-mention href="file.md">file.md</a>
+  const htmlMentionRegex = /<a\s+data-mention\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+
+  content = content.replace(htmlMentionRegex, (match, href, text) => {
+    const cleanHref = href.replace(/\.md$/, '');
+    const cleanText = text.replace(/\.md$/, '').replace(/-/g, ' ');
+    return `<a href="${cleanHref}">${cleanText}</a>`;
+  });
+
+  return content;
 }
 
 /**
