@@ -159,14 +159,19 @@ iframe {
   }
 }
 
-/* Sidebar nested group labels - same style as regular items */
-.sidebar-content .top-level > li > details > summary,
-.sidebar-content details details summary {
-  font-weight: normal;
+/* All sidebar items should have the same font weight */
+.sidebar-content summary,
+.sidebar-content details summary,
+.sidebar-content details details summary,
+nav.sidebar details summary,
+nav.sidebar details summary span,
+.sidebar-content .top-level li details summary,
+.sidebar-content .top-level li details details summary {
+  font-weight: 400 !important;
 }
 
-/* Remove bold from nested sidebar group titles */
-nav.sidebar details summary span {
+/* Ensure all sidebar links have consistent styling */
+.sidebar-content a {
   font-weight: 400;
 }
 
