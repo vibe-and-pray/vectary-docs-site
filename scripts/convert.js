@@ -535,12 +535,18 @@ function fixMarkdownImagePaths(content) {
 
 /**
  * Fix internal links - remove .md extension and adjust paths
+ *
+ * Astro/Starlight URLs have trailing slashes: /page/ not /page
+ * This means relative links need adjustment:
+ * - Sibling file "other.md" from "current.md" needs "../other" (not "other")
+ * - Parent path "../other.md" needs "../../other" (one extra ../)
+ * - But "../../other.md" stays "../../other" (already has enough levels)
  */
 function fixInternalLinks(content, currentFilePath) {
   // Get current file name without extension for self-reference detection
   const currentFileName = currentFilePath ? path.basename(currentFilePath, '.md') : '';
 
-  // First pass: fix .md links
+  // First pass: fix .md links (before convertMentionLinks removes .md)
   const mdLinkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
   content = content.replace(mdLinkRegex, (match, url, anchor) => {
     // Don't modify external links
@@ -551,7 +557,7 @@ function fixInternalLinks(content, currentFilePath) {
     // Remove .md extension
     let cleanUrl = url.replace(/\.md$/, '');
 
-    return processInternalLink(cleanUrl, anchor, currentFileName);
+    return processInternalLink(cleanUrl, anchor, currentFileName, true);
   });
 
   // Second pass: fix sibling links without .md (already processed by convertMentionLinks)
@@ -568,21 +574,32 @@ function fixInternalLinks(content, currentFilePath) {
       return match;
     }
 
-    return processInternalLink(url, anchor, currentFileName);
+    return processInternalLink(url, anchor, currentFileName, false);
   });
 
-  // Third pass: fix relative paths with ../ (from convertMentionLinks or .md links)
-  // These need ONE extra ../ at the start because Astro URLs have trailing slashes
-  // But only if not already processed (check for ../.. pattern)
-  const relativePathRegex = /\]\((\.\.\/(?!\.\.)[^)#]+)(#[^)]+)?\)/g;
-  content = content.replace(relativePathRegex, (match, url, anchor) => {
-    // Add one extra ../ at the start for Astro trailing slash URLs
-    return `](../${url}${anchor || ''})`;
+  // Third pass: fix relative paths with single ../ that go to parent directories
+  // These need one extra ../ because Astro URLs have trailing slashes
+  // Match: ](../something/more) - paths that go UP then INTO another directory
+  // Don't match: ](../sibling) - simple sibling files (no / after the filename)
+  const parentPathRegex = /\]\((\.\.\/[^)#]*\/[^)#]*)(#[^)]+)?\)/g;
+  content = content.replace(parentPathRegex, (match, url, anchor) => {
+    // Only add ../ if it's a single ../ path (not already ../../)
+    if (url.startsWith('../') && !url.startsWith('../../')) {
+      return `](../${url}${anchor || ''})`;
+    }
+    return match;
   });
 
   return content;
 
-  function processInternalLink(cleanUrl, anchor, currentFileName) {
+  /**
+   * Process an internal link
+   * @param {string} cleanUrl - URL without .md extension
+   * @param {string} anchor - anchor part (#something) or undefined
+   * @param {string} currentFileName - current file name for self-reference detection
+   * @param {boolean} fromMdLink - true if this came from a .md link (needs extra ../ for parent paths)
+   */
+  function processInternalLink(cleanUrl, anchor, currentFileName, fromMdLink) {
     // Get the linked file name
     const linkedFileName = path.basename(cleanUrl);
 
@@ -603,11 +620,16 @@ function fixInternalLinks(content, currentFilePath) {
       return `](${mappedAnchor || '#'})`;
     }
 
-    // For sibling files (same directory, no path prefix), add ../
+    // Adjust paths for Astro trailing slash URLs
     if (!cleanUrl.includes('/')) {
+      // Sibling file (same directory) - add ../
+      cleanUrl = '../' + cleanUrl;
+    } else if (cleanUrl.startsWith('../') && fromMdLink) {
+      // Parent path from .md link - add one extra ../
+      // e.g., "../design-process/effects" becomes "../../design-process/effects"
       cleanUrl = '../' + cleanUrl;
     }
-    // Note: paths with ../ are handled by the third pass in fixInternalLinks
+    // Paths starting with ../../ or deeper already have correct depth
 
     return `](${cleanUrl}${mappedAnchor})`;
   }
