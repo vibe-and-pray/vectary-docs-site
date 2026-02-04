@@ -34,7 +34,33 @@ export default defineConfig({
           label: 'Design Process',
           collapsed: true,
           items: [
-            { label: 'Design mode', collapsed: true, autogenerate: { directory: 'documentation/design-process/design-mode' } },
+            {
+              label: 'Design mode',
+              collapsed: true,
+              items: [
+                { slug: 'documentation/design-process/design-mode', label: 'Design mode' },
+                { slug: 'documentation/design-process/design-mode/selections-tools' },
+                { slug: 'documentation/design-process/design-mode/primitives' },
+                { slug: 'documentation/design-process/design-mode/3d-text' },
+                { slug: 'documentation/design-process/design-mode/light-sources' },
+                {
+                  label: 'Modifiers',
+                  collapsed: true,
+                  autogenerate: { directory: 'documentation/design-process/design-mode/modifiers' },
+                },
+                {
+                  label: 'Deformers',
+                  collapsed: true,
+                  autogenerate: { directory: 'documentation/design-process/design-mode/deformers' },
+                },
+                { slug: 'documentation/design-process/design-mode/interactive-elements' },
+                {
+                  label: 'Setup',
+                  collapsed: true,
+                  autogenerate: { directory: 'documentation/design-process/design-mode/setup' },
+                },
+              ],
+            },
             { label: 'Materials and textures', collapsed: true, autogenerate: { directory: 'documentation/design-process/materials-and-textures' } },
             { slug: 'documentation/design-process/animated-materials' },
             { slug: 'documentation/design-process/decals' },
