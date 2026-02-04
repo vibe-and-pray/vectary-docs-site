@@ -4,6 +4,7 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
   site: 'https://vibe-and-pray.github.io',
   base: '/vectary-docs-site',
+  trailingSlash: 'never',
   integrations: [
     starlight({
       title: 'Vectary Docs',

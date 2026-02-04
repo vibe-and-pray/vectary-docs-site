@@ -534,23 +534,14 @@ function fixMarkdownImagePaths(content) {
 }
 
 /**
- * Fix internal links - remove .md extension and adjust paths
- *
- * Astro/Starlight URLs have trailing slashes: /page/ not /page
- * This means relative links need adjustment:
- * - From regular page: sibling "other.md" needs "../other"
- * - From index page (README.md): sibling "other.md" stays "./other" (same folder)
- * - Parent path "../other.md" needs "../../other" (one extra ../)
- * - But "../../other.md" stays "../../other" (already has enough levels)
+ * Fix internal links - remove .md extension
+ * With trailingSlash: 'never' in Astro config, relative links work as expected
  */
 function fixInternalLinks(content, currentFilePath) {
   // Get current file name without extension for self-reference detection
   const currentFileName = currentFilePath ? path.basename(currentFilePath, '.md') : '';
 
-  // Check if this is a README/index file (these don't need ../ for siblings)
-  const isIndexFile = currentFileName.toLowerCase() === 'readme';
-
-  // First pass: fix .md links (before convertMentionLinks removes .md)
+  // Fix .md links - just remove the extension
   const mdLinkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
   content = content.replace(mdLinkRegex, (match, url, anchor) => {
     // Don't modify external links
@@ -559,90 +550,32 @@ function fixInternalLinks(content, currentFilePath) {
     }
 
     // Remove .md extension
-    let cleanUrl = url.replace(/\.md$/, '');
-
-    return processInternalLink(cleanUrl, anchor, currentFileName, true, isIndexFile);
-  });
-
-  // Second pass: fix sibling links without .md (already processed by convertMentionLinks)
-  // Match markdown links that are simple filenames (no path, no extension, no http)
-  const siblingLinkRegex = /\]\(([a-z0-9-]+)(#[^)]+)?\)/gi;
-  content = content.replace(siblingLinkRegex, (match, url, anchor) => {
-    // Skip if already has ../ or is an external link or has a path
-    if (url.startsWith('http') || url.startsWith('.') || url.startsWith('/') || url.includes('/')) {
-      return match;
-    }
-
-    // Skip if it's just an anchor
-    if (url.startsWith('#')) {
-      return match;
-    }
-
-    return processInternalLink(url, anchor, currentFileName, false, isIndexFile);
-  });
-
-  // Third pass: fix relative paths with single ../ that go to parent directories
-  // These need one extra ../ because Astro URLs have trailing slashes
-  // Match: ](../something/more) - paths that go UP then INTO another directory
-  // Don't match: ](../sibling) - simple sibling files (no / after the filename)
-  const parentPathRegex = /\]\((\.\.\/[^)#]*\/[^)#]*)(#[^)]+)?\)/g;
-  content = content.replace(parentPathRegex, (match, url, anchor) => {
-    // Only add ../ if it's a single ../ path (not already ../../)
-    if (url.startsWith('../') && !url.startsWith('../../')) {
-      return `](../${url}${anchor || ''})`;
-    }
-    return match;
-  });
-
-  return content;
-
-  /**
-   * Process an internal link
-   * @param {string} cleanUrl - URL without .md extension
-   * @param {string} anchor - anchor part (#something) or undefined
-   * @param {string} currentFileName - current file name for self-reference detection
-   * @param {boolean} fromMdLink - true if this came from a .md link (needs extra ../ for parent paths)
-   * @param {boolean} isIndexFile - true if current file is README.md (becomes index.mdx)
-   */
-  function processInternalLink(cleanUrl, anchor, currentFileName, fromMdLink, isIndexFile) {
-    // Get the linked file name
+    const cleanUrl = url.replace(/\.md$/, '');
     const linkedFileName = path.basename(cleanUrl);
 
-    // Fix anchors that reference tab titles (e.g., #green-dot)
-    const mappedAnchor = anchor ? (function() {
-      const tabAnchorMap = {
-        '#green-dot': '#project-tips',
-        '#order-of-workspaces': '#workspace-tips',
-        '#workspace-id': '#workspace-tips',
-        '#project-movement': '#project-tips',
-        '#project-selection': '#project-tips',
-      };
-      return tabAnchorMap[anchor.toLowerCase()] || anchor;
-    })() : '';
+    // Fix anchors that reference tab titles
+    const mappedAnchor = mapAnchor(anchor);
 
     // If linking to the same file, use just the anchor
     if (linkedFileName === currentFileName) {
       return `](${mappedAnchor || '#'})`;
     }
 
-    // Adjust paths for Astro trailing slash URLs
-    if (!cleanUrl.includes('/')) {
-      // Sibling file (same directory)
-      if (isIndexFile) {
-        // From index/README: siblings are in same folder, use ./
-        cleanUrl = './' + cleanUrl;
-      } else {
-        // From regular page: need ../ to go up then into sibling
-        cleanUrl = '../' + cleanUrl;
-      }
-    } else if (cleanUrl.startsWith('../') && fromMdLink) {
-      // Parent path from .md link - add one extra ../
-      // e.g., "../design-process/effects" becomes "../../design-process/effects"
-      cleanUrl = '../' + cleanUrl;
-    }
-    // Paths starting with ../../ or deeper already have correct depth
-
     return `](${cleanUrl}${mappedAnchor})`;
+  });
+
+  return content;
+
+  function mapAnchor(anchor) {
+    if (!anchor) return '';
+    const tabAnchorMap = {
+      '#green-dot': '#project-tips',
+      '#order-of-workspaces': '#workspace-tips',
+      '#workspace-id': '#workspace-tips',
+      '#project-movement': '#project-tips',
+      '#project-selection': '#project-tips',
+    };
+    return tabAnchorMap[anchor.toLowerCase()] || anchor;
   }
 }
 
