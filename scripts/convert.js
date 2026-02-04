@@ -571,11 +571,12 @@ function fixInternalLinks(content, currentFilePath) {
     return processInternalLink(url, anchor, currentFileName);
   });
 
-  // Third pass: fix relative paths with ../ (from convertMentionLinks)
-  // These need an extra ../ because Astro URLs have trailing slashes
-  const relativePathRegex = /\]\((\.\.\/[^)#]+)(#[^)]+)?\)/g;
+  // Third pass: fix relative paths with ../ (from convertMentionLinks or .md links)
+  // These need ONE extra ../ at the start because Astro URLs have trailing slashes
+  // But only if not already processed (check for ../.. pattern)
+  const relativePathRegex = /\]\((\.\.\/(?!\.\.)[^)#]+)(#[^)]+)?\)/g;
   content = content.replace(relativePathRegex, (match, url, anchor) => {
-    // Add extra ../ for Astro trailing slash URLs
+    // Add one extra ../ at the start for Astro trailing slash URLs
     return `](../${url}${anchor || ''})`;
   });
 
@@ -605,11 +606,8 @@ function fixInternalLinks(content, currentFilePath) {
     // For sibling files (same directory, no path prefix), add ../
     if (!cleanUrl.includes('/')) {
       cleanUrl = '../' + cleanUrl;
-    } else if (cleanUrl.startsWith('../')) {
-      // For relative paths with ../, add one more ../ because Astro URLs
-      // have trailing slash (e.g., /page/ instead of /page)
-      cleanUrl = '../' + cleanUrl;
     }
+    // Note: paths with ../ are handled by the third pass in fixInternalLinks
 
     return `](${cleanUrl}${mappedAnchor})`;
   }
