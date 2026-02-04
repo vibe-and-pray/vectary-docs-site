@@ -12,9 +12,6 @@ export default defineConfig({
         src: './src/assets/vectary-logo.svg',
         replacesTitle: true,
       },
-      social: {
-        github: 'https://github.com/vibe-and-pray/vectary-docs',
-      },
       customCss: [
         './src/styles/custom.css',
       ],
@@ -25,38 +22,47 @@ export default defineConfig({
         },
         {
           label: 'Getting Started',
+          collapsed: true,
           autogenerate: { directory: 'documentation/getting-started' },
         },
         {
           label: 'Importing',
+          collapsed: true,
           autogenerate: { directory: 'documentation/importing' },
         },
         {
           label: 'Design Process',
+          collapsed: true,
           autogenerate: { directory: 'documentation/design-process' },
         },
         {
           label: 'Sharing & Exporting',
+          collapsed: true,
           autogenerate: { directory: 'documentation/sharing-and-exporting' },
         },
         {
           label: 'Embedding',
+          collapsed: true,
           autogenerate: { directory: 'documentation/embedding' },
         },
         {
           label: 'Model API',
+          collapsed: true,
           autogenerate: { directory: 'api/model-api' },
         },
         {
           label: 'Tutorials',
+          collapsed: true,
           autogenerate: { directory: 'tutorials' },
         },
         {
           label: 'Showcases',
+          collapsed: true,
           autogenerate: { directory: 'showcases' },
         },
         {
           label: 'Changelog',
+          collapsed: true,
           autogenerate: { directory: 'changelog' },
         },
       ],
