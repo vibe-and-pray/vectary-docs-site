@@ -88,8 +88,8 @@ function convertTabs(content) {
 
     if (tabs.length === 0) return match;
 
-    const tabItems = tabs.map(tab => 
-      `  <TabItem label="${tab.title}">\n    ${tab.content}\n  </TabItem>`
+    const tabItems = tabs.map(tab =>
+      `<TabItem label="${tab.title}">\n${tab.content}\n</TabItem>`
     ).join('\n');
 
     return `<Tabs>\n${tabItems}\n</Tabs>`;
