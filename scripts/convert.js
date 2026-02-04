@@ -20,6 +20,8 @@ const CONFIG = {
   assetsOutputDir: './src/assets/gitbook',
   excludeDirs: ['model-api-new', '.git', 'node_modules'],
   excludeFiles: ['SUMMARY.md'],
+  // Skip root README.md - we have a custom index.mdx for the homepage
+  skipRootReadme: true,
 };
 
 // ============================================================================
@@ -783,8 +785,19 @@ async function processDir(sourceBase, outputBase, relativePath) {
       fs.mkdirSync(path.join(currentOutput, entry.name), { recursive: true });
       await processDir(sourceBase, outputBase, entryRelPath);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      // Skip root README.md - we have a custom index.mdx for homepage
+      if (CONFIG.skipRootReadme && relativePath === '' && entry.name.toLowerCase() === 'readme.md') {
+        console.log(`⏭️  Skipping root: ${entry.name}`);
+        continue;
+      }
+
       const sourcePath = path.join(currentSource, entry.name);
-      const outputPath = path.join(currentOutput, entry.name.replace(/\.md$/, '.mdx'));
+      // Rename README.md to index.mdx for proper routing
+      let outputName = entry.name.replace(/\.md$/, '.mdx');
+      if (entry.name.toLowerCase() === 'readme.md') {
+        outputName = 'index.mdx';
+      }
+      const outputPath = path.join(currentOutput, outputName);
 
       try {
         const content = fs.readFileSync(sourcePath, 'utf-8');
