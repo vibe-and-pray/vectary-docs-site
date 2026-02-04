@@ -386,15 +386,17 @@ function processFrontmatter(content, filePath) {
   let multilineMode = null; // '>-', '>', '|', or null
 
   const lines = frontmatterRaw.split('\n');
+  let inNestedBlock = false;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Check if this is a new key (starts with word followed by colon)
+    // Check if this is a new top-level key (starts with word followed by colon, no leading spaces)
     const keyMatch = line.match(/^(\w+):\s*(.*)?$/);
 
-    if (keyMatch && !line.startsWith('  ')) {
+    if (keyMatch && !line.startsWith(' ')) {
       // Save previous key-value if exists
-      if (currentKey) {
+      if (currentKey && !inNestedBlock) {
         // For >- and > modes, join with spaces; for | mode, join with newlines
         const joiner = (multilineMode === '|') ? '\n' : ' ';
         fm[currentKey] = currentValue.length > 0
@@ -405,22 +407,39 @@ function processFrontmatter(content, filePath) {
       currentKey = keyMatch[1];
       const value = keyMatch[2] || '';
 
-      // Check for multiline indicators
+      // Check for multiline indicators or nested YAML blocks
       if (value === '>-' || value === '|' || value === '>') {
         multilineMode = value;
+        inNestedBlock = false;
         currentValue = [];
+      } else if (value === '') {
+        // Empty value could be start of nested block - check next line
+        const nextLine = lines[i + 1];
+        if (nextLine && nextLine.match(/^\s{2,}\w+:/)) {
+          // Next line is indented key - this is a nested block, skip it
+          inNestedBlock = true;
+          currentValue = [];
+        } else {
+          inNestedBlock = false;
+          multilineMode = null;
+          currentValue = [];
+        }
       } else {
+        inNestedBlock = false;
         multilineMode = null;
         currentValue = [value];
       }
-    } else if (currentKey && (line.startsWith('  ') || line.trim() === '')) {
-      // Continuation of multiline value
-      currentValue.push(line.replace(/^  /, '').trim());
+    } else if (currentKey && !inNestedBlock && (line.startsWith('  ') || line.trim() === '')) {
+      // Continuation of multiline value (only if not in nested block)
+      if (!line.match(/^\s{2,}\w+:/)) {
+        // Not a nested key
+        currentValue.push(line.replace(/^  /, '').trim());
+      }
     }
   }
 
-  // Save last key-value
-  if (currentKey) {
+  // Save last key-value (only if not in nested block)
+  if (currentKey && !inNestedBlock) {
     const joiner = (multilineMode === '|') ? '\n' : ' ';
     fm[currentKey] = currentValue.length > 0
       ? currentValue.join(joiner).trim()
