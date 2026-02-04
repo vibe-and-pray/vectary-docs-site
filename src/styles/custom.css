@@ -158,3 +158,14 @@ iframe {
     width: 14rem;
   }
 }
+
+/* Sidebar nested group labels - same style as regular items */
+.sidebar-content .top-level > li > details > summary,
+.sidebar-content details details summary {
+  font-weight: normal;
+}
+
+/* Remove bold from nested sidebar group titles */
+nav.sidebar details summary span {
+  font-weight: 400;
+}
