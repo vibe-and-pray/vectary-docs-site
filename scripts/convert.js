@@ -407,6 +407,26 @@ function convertPreCodeBlocks(content) {
 }
 
 /**
+ * Escape angle brackets inside inline <code> tags to prevent JSX parsing
+ */
+function escapeInlineCode(content) {
+  // Match <code>...</code> that's NOT inside a markdown code block
+  const inlineCodeRegex = /<code>([^<]*(?:<(?!\/code>)[^<]*)*)<\/code>/gi;
+
+  return content.replace(inlineCodeRegex, (match, code) => {
+    // Skip if it looks like it's already escaped
+    if (code.includes('&lt;') || code.includes('&gt;')) {
+      return match;
+    }
+    // Escape < and > that look like type parameters (e.g., Array<Type>)
+    const escaped = code
+      .replace(/<(?!\s)/g, '&lt;')
+      .replace(/(?<!\s)>/g, '&gt;');
+    return `<code>${escaped}</code>`;
+  });
+}
+
+/**
  * Convert GitBook escaped brackets \[ and \] to regular brackets
  */
 function convertEscapedBrackets(content) {
@@ -650,6 +670,7 @@ function convertFile(content, filePath) {
   result = convertMentionLinks(result);
   result = removeHtmlEntities(result);
   result = convertPreCodeBlocks(result);
+  result = escapeInlineCode(result);
   result = convertEscapedBrackets(result);
   result = convertVoidTags(result);
   result = fixInternalLinks(result);
