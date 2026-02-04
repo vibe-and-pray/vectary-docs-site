@@ -685,7 +685,9 @@ function processFrontmatter(content, filePath) {
   if (!match) {
     // No frontmatter, add basic one
     const title = extractTitleFromContent(content) || path.basename(filePath, '.md');
-    return `---\ntitle: "${title}"\n---\n\n${content}`;
+    // Remove H1 from content since it becomes the title
+    const bodyContent = removeFirstH1(content);
+    return `---\ntitle: "${title}"\n---\n\n${bodyContent}`;
   }
 
   const frontmatterRaw = match[1];
