@@ -169,3 +169,8 @@ iframe {
 nav.sidebar details summary span {
   font-weight: 400;
 }
+
+/* Prevent sidebar content shift when scrollbar appears */
+.sidebar-content {
+  scrollbar-gutter: stable;
+}
