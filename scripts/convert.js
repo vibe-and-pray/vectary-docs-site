@@ -129,6 +129,23 @@ function convertStepper(content) {
 }
 
 /**
+ * Convert {% file src="..." %} to download link
+ */
+function convertFileRefs(content) {
+  // Pattern: {% file src="..." %} with optional text after
+  const fileRegex = /\{%\s*file\s+src="([^"]+)"[^%]*%\}/g;
+
+  return content.replace(fileRegex, (match, src) => {
+    const filename = src.split('/').pop();
+    // Convert .gitbook/assets path to proper path
+    const cleanSrc = src.includes('.gitbook/assets/')
+      ? `~/assets/gitbook/${filename}`
+      : src;
+    return `[Download ${filename}](${cleanSrc})`;
+  });
+}
+
+/**
  * Convert {% content-ref %} to simple link
  */
 function convertContentRefs(content) {
@@ -623,6 +640,7 @@ function convertFile(content, filePath) {
   result = convertTabs(result);
   result = convertStepper(result);
   result = convertContentRefs(result);
+  result = convertFileRefs(result);
   result = convertEmbeds(result);
   result = convertCards(result);
   result = convertFigures(result);
