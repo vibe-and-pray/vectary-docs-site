@@ -305,6 +305,19 @@ function convertEscapedBrackets(content) {
 }
 
 /**
+ * Convert void HTML tags to self-closing for JSX/MDX compatibility
+ */
+function convertVoidTags(content) {
+  return content
+    // <br> → <br />
+    .replace(/<br\s*>/gi, '<br />')
+    // <hr> → <hr />
+    .replace(/<hr\s*>/gi, '<hr />')
+    // <img ...> → <img ... /> (only if not already self-closing)
+    .replace(/<img\s+([^>]*[^/])>/gi, '<img $1 />');
+}
+
+/**
  * Fix asset paths from GitBook format to Starlight format
  */
 function fixAssetPath(originalPath) {
@@ -504,6 +517,7 @@ function convertFile(content, filePath) {
   result = convertMentionLinks(result);
   result = removeHtmlEntities(result);
   result = convertEscapedBrackets(result);
+  result = convertVoidTags(result);
   result = fixInternalLinks(result);
   result = processFrontmatter(result, filePath);
 
