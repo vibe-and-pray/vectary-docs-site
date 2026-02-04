@@ -394,10 +394,11 @@ function processFrontmatter(content, filePath) {
     newFm.push(`title: "${title}"`);
   }
 
-  // Description
+  // Description - use single quotes to avoid escape issues with special chars
   if (fm.description) {
-    const desc = fm.description.replace(/"/g, '\\"');
-    newFm.push(`description: "${desc}"`);
+    // Replace single quotes with escaped single quotes for YAML
+    const desc = fm.description.replace(/'/g, "''");
+    newFm.push(`description: '${desc}'`);
   }
 
   // Hidden pages
