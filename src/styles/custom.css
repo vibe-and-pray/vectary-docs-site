@@ -1,0 +1,95 @@
+/* Custom styles for Vectary Docs */
+
+:root {
+  /* Vectary brand colors */
+  --sl-color-accent-low: #1a1a2e;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #818cf8;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f8fafc;
+  --sl-color-gray-2: #e2e8f0;
+  --sl-color-gray-3: #cbd5e1;
+  --sl-color-gray-4: #94a3b8;
+  --sl-color-gray-5: #64748b;
+  --sl-color-gray-6: #475569;
+  --sl-color-black: #0f172a;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #312e81;
+  --sl-color-accent: #818cf8;
+  --sl-color-accent-high: #c7d2fe;
+  --sl-color-white: #0f172a;
+  --sl-color-gray-1: #1e293b;
+  --sl-color-gray-2: #334155;
+  --sl-color-gray-3: #475569;
+  --sl-color-gray-4: #64748b;
+  --sl-color-gray-5: #94a3b8;
+  --sl-color-gray-6: #cbd5e1;
+  --sl-color-black: #f8fafc;
+}
+
+/* Logo styling */
+.site-title img {
+  height: 2rem;
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Code blocks */
+pre {
+  border-radius: 0.5rem;
+}
+
+/* Links */
+a:hover {
+  text-decoration: underline;
+}
+
+/* Aside/callout styling */
+.starlight-aside {
+  border-radius: 0.5rem;
+}
+
+/* Card styling */
+.card {
+  border-radius: 0.75rem;
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Figure captions */
+figcaption {
+  font-size: 0.875rem;
+  color: var(--sl-color-gray-5);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid var(--sl-color-gray-3);
+  padding: 0.75rem;
+}
+
+th {
+  background-color: var(--sl-color-gray-1);
+}
+
+/* Iframe embeds */
+iframe {
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}

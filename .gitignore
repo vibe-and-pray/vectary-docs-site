@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.astro/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated content (will be created by convert script)
+src/content/docs/documentation/
+src/content/docs/api/
+src/content/docs/tutorials/
+src/content/docs/showcases/
+src/content/docs/changelog/
+src/assets/gitbook/
