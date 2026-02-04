@@ -760,14 +760,19 @@ function processFrontmatter(content, filePath) {
 
   // Build new frontmatter
   const newFm = [];
-  
-  // Title
+
+  // Title - extract from content if not in frontmatter
+  let bodyContent = body;
   if (!fm.title) {
     const title = extractTitleFromContent(body) || path.basename(filePath, '.md');
     newFm.push(`title: "${title}"`);
+    // Remove the H1 from body since it's now in frontmatter
+    bodyContent = removeFirstH1(body);
   } else {
     const title = fm.title.replace(/^["']|["']$/g, '');
     newFm.push(`title: "${title}"`);
+    // Also remove H1 if it matches the frontmatter title
+    bodyContent = removeFirstH1(body);
   }
 
   // Description - use single quotes to avoid escape issues with special chars
@@ -787,7 +792,7 @@ function processFrontmatter(content, filePath) {
     newFm.push(`# icon: ${fm.icon}`);
   }
 
-  return `---\n${newFm.join('\n')}\n---\n${body}`;
+  return `---\n${newFm.join('\n')}\n---\n${bodyContent}`;
 }
 
 /**
@@ -796,6 +801,14 @@ function processFrontmatter(content, filePath) {
 function extractTitleFromContent(content) {
   const titleMatch = content.match(/^#\s+(.+)$/m);
   return titleMatch ? titleMatch[1].trim() : null;
+}
+
+/**
+ * Remove the first H1 heading from content (since it's used as frontmatter title)
+ */
+function removeFirstH1(content) {
+  // Remove the first # heading (with optional leading whitespace/newlines)
+  return content.replace(/^(\s*#\s+.+\n?)/, '');
 }
 
 /**
