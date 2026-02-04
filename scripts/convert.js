@@ -95,6 +95,21 @@ function convertTabs(content) {
 }
 
 /**
+ * Convert {% content-ref %} to simple link
+ */
+function convertContentRefs(content) {
+  // Pattern: {% content-ref url="..." %} ... {% endcontent-ref %}
+  const contentRefRegex = /\{%\s*content-ref\s+url="([^"]+)"\s*%\}[\s\S]*?\{%\s*endcontent-ref\s*%\}/g;
+
+  return content.replace(contentRefRegex, (match, url) => {
+    // Remove .md extension and create a simple link
+    const cleanUrl = url.replace(/\.md$/, '');
+    const linkText = cleanUrl.split('/').pop().replace(/-/g, ' ');
+    return `[${linkText}](${cleanUrl})`;
+  });
+}
+
+/**
  * Convert {% embed url="..." %} to appropriate iframe/embed
  */
 function convertEmbeds(content) {
@@ -508,6 +523,7 @@ function convertFile(content, filePath) {
   // Apply all conversions in order
   result = convertHints(result);
   result = convertTabs(result);
+  result = convertContentRefs(result);
   result = convertEmbeds(result);
   result = convertCards(result);
   result = convertFigures(result);
