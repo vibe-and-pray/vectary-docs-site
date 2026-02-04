@@ -97,6 +97,38 @@ function convertTabs(content) {
 }
 
 /**
+ * Convert {% stepper %} {% step %} to numbered list
+ */
+function convertStepper(content) {
+  // Pattern: {% stepper %} ... {% endstepper %}
+  const stepperRegex = /\{%\s*stepper\s*%\}([\s\S]*?)\{%\s*endstepper\s*%\}/g;
+
+  return content.replace(stepperRegex, (match, stepperContent) => {
+    // Find individual steps
+    const stepRegex = /\{%\s*step\s*%\}([\s\S]*?)(?=\{%\s*step\s*%\}|\{%\s*endstep\s*%\}|$)/g;
+
+    let steps = [];
+    let stepMatch;
+
+    // Clean endstep markers
+    const cleanContent = stepperContent.replace(/\{%\s*endstep\s*%\}/g, '');
+
+    while ((stepMatch = stepRegex.exec(cleanContent)) !== null) {
+      steps.push(stepMatch[1].trim());
+    }
+
+    if (steps.length === 0) return match;
+
+    // Convert to numbered list with Steps component style
+    const stepItems = steps.map((step, index) => {
+      return `${index + 1}. ${step}`;
+    }).join('\n\n');
+
+    return stepItems;
+  });
+}
+
+/**
  * Convert {% content-ref %} to simple link
  */
 function convertContentRefs(content) {
@@ -545,6 +577,7 @@ function convertFile(content, filePath) {
   // Apply all conversions in order
   result = convertHints(result);
   result = convertTabs(result);
+  result = convertStepper(result);
   result = convertContentRefs(result);
   result = convertEmbeds(result);
   result = convertCards(result);
