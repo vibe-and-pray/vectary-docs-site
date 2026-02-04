@@ -538,13 +538,17 @@ function fixMarkdownImagePaths(content) {
  *
  * Astro/Starlight URLs have trailing slashes: /page/ not /page
  * This means relative links need adjustment:
- * - Sibling file "other.md" from "current.md" needs "../other" (not "other")
+ * - From regular page: sibling "other.md" needs "../other"
+ * - From index page (README.md): sibling "other.md" stays "./other" (same folder)
  * - Parent path "../other.md" needs "../../other" (one extra ../)
  * - But "../../other.md" stays "../../other" (already has enough levels)
  */
 function fixInternalLinks(content, currentFilePath) {
   // Get current file name without extension for self-reference detection
   const currentFileName = currentFilePath ? path.basename(currentFilePath, '.md') : '';
+
+  // Check if this is a README/index file (these don't need ../ for siblings)
+  const isIndexFile = currentFileName.toLowerCase() === 'readme';
 
   // First pass: fix .md links (before convertMentionLinks removes .md)
   const mdLinkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
@@ -557,7 +561,7 @@ function fixInternalLinks(content, currentFilePath) {
     // Remove .md extension
     let cleanUrl = url.replace(/\.md$/, '');
 
-    return processInternalLink(cleanUrl, anchor, currentFileName, true);
+    return processInternalLink(cleanUrl, anchor, currentFileName, true, isIndexFile);
   });
 
   // Second pass: fix sibling links without .md (already processed by convertMentionLinks)
@@ -574,7 +578,7 @@ function fixInternalLinks(content, currentFilePath) {
       return match;
     }
 
-    return processInternalLink(url, anchor, currentFileName, false);
+    return processInternalLink(url, anchor, currentFileName, false, isIndexFile);
   });
 
   // Third pass: fix relative paths with single ../ that go to parent directories
@@ -598,8 +602,9 @@ function fixInternalLinks(content, currentFilePath) {
    * @param {string} anchor - anchor part (#something) or undefined
    * @param {string} currentFileName - current file name for self-reference detection
    * @param {boolean} fromMdLink - true if this came from a .md link (needs extra ../ for parent paths)
+   * @param {boolean} isIndexFile - true if current file is README.md (becomes index.mdx)
    */
-  function processInternalLink(cleanUrl, anchor, currentFileName, fromMdLink) {
+  function processInternalLink(cleanUrl, anchor, currentFileName, fromMdLink, isIndexFile) {
     // Get the linked file name
     const linkedFileName = path.basename(cleanUrl);
 
@@ -622,8 +627,14 @@ function fixInternalLinks(content, currentFilePath) {
 
     // Adjust paths for Astro trailing slash URLs
     if (!cleanUrl.includes('/')) {
-      // Sibling file (same directory) - add ../
-      cleanUrl = '../' + cleanUrl;
+      // Sibling file (same directory)
+      if (isIndexFile) {
+        // From index/README: siblings are in same folder, use ./
+        cleanUrl = './' + cleanUrl;
+      } else {
+        // From regular page: need ../ to go up then into sibling
+        cleanUrl = '../' + cleanUrl;
+      }
     } else if (cleanUrl.startsWith('../') && fromMdLink) {
       // Parent path from .md link - add one extra ../
       // e.g., "../design-process/effects" becomes "../../design-process/effects"
