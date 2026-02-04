@@ -1,0 +1,633 @@
+#!/usr/bin/env node
+
+/**
+ * GitBook to Starlight MDX Converter
+ * Converts GitBook-specific markdown syntax to standard MDX components
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configuration
+const CONFIG = {
+  sourceDir: process.env.SOURCE_DIR || '../vectary-docs',
+  outputDir: './src/content/docs',
+  assetsSourceDir: '.gitbook/assets',
+  assetsOutputDir: './src/assets/gitbook',
+  excludeDirs: ['model-api-new', '.git', 'node_modules'],
+  excludeFiles: ['SUMMARY.md'],
+};
+
+// ============================================================================
+// CONVERTERS
+// ============================================================================
+
+/**
+ * Convert {% hint style="..." %} to Starlight <Aside>
+ */
+function convertHints(content) {
+  // Map GitBook hint styles to Starlight Aside types
+  const styleMap = {
+    'success': 'tip',
+    'info': 'note',
+    'warning': 'caution',
+    'danger': 'danger',
+  };
+
+  // Pattern: {% hint style="type" %} ... {% endhint %}
+  const hintRegex = /\{%\s*hint\s+style="(\w+)"\s*%\}([\s\S]*?)\{%\s*endhint\s*%\}/g;
+
+  return content.replace(hintRegex, (match, style, innerContent) => {
+    const asideType = styleMap[style] || 'note';
+    
+    // Extract title if present (#### Title format) - match until end of line
+    const titleMatch = innerContent.match(/^[\s\n]*####\s*(.+)$/m);
+    let title = '';
+    let body = innerContent;
+    
+    if (titleMatch) {
+      title = ` title="${titleMatch[1].trim()}"`;
+      body = innerContent.replace(/^[\s\n]*####\s*.+$/m, '');
+    }
+    
+    return `<Aside type="${asideType}"${title}>\n${body.trim()}\n</Aside>`;
+  });
+}
+
+/**
+ * Convert {% tabs %} {% tab title="..." %} to Starlight <Tabs><TabItem>
+ */
+function convertTabs(content) {
+  // First, find all tabs blocks
+  const tabsRegex = /\{%\s*tabs\s*%\}([\s\S]*?)\{%\s*endtabs\s*%\}/g;
+
+  return content.replace(tabsRegex, (match, tabsContent) => {
+    // Find individual tabs
+    const tabRegex = /\{%\s*tab\s+title="([^"]+)"\s*%\}([\s\S]*?)(?=\{%\s*(?:tab|endtabs)\s*|\{%\s*endtab\s*%\})/g;
+    
+    let tabs = [];
+    let tabMatch;
+    
+    // Also handle {% endtab %} markers
+    const cleanContent = tabsContent.replace(/\{%\s*endtab\s*%\}/g, '');
+    
+    const tabRegex2 = /\{%\s*tab\s+title="([^"]+)"\s*%\}([\s\S]*?)(?=\{%\s*tab\s+title=|$)/g;
+    
+    while ((tabMatch = tabRegex2.exec(cleanContent)) !== null) {
+      tabs.push({
+        title: tabMatch[1],
+        content: tabMatch[2].trim()
+      });
+    }
+
+    if (tabs.length === 0) return match;
+
+    const tabItems = tabs.map(tab => 
+      `  <TabItem label="${tab.title}">\n    ${tab.content}\n  </TabItem>`
+    ).join('\n');
+
+    return `<Tabs>\n${tabItems}\n</Tabs>`;
+  });
+}
+
+/**
+ * Convert {% embed url="..." %} to appropriate iframe/embed
+ */
+function convertEmbeds(content) {
+  const embedRegex = /\{%\s*embed\s+url="([^"]+)"\s*%\}/g;
+
+  return content.replace(embedRegex, (match, url) => {
+    // YouTube
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      const videoId = extractYouTubeId(url);
+      if (videoId) {
+        return `<iframe 
+  width="100%" 
+  height="400" 
+  src="https://www.youtube.com/embed/${videoId}" 
+  title="YouTube video" 
+  frameborder="0" 
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+  allowfullscreen
+></iframe>`;
+      }
+    }
+
+    // Screen.studio
+    if (url.includes('screen.studio')) {
+      return `<iframe 
+  width="100%" 
+  height="400" 
+  src="${url}" 
+  title="Screen recording" 
+  frameborder="0" 
+  allowfullscreen
+></iframe>`;
+    }
+
+    // Generic embed - use iframe
+    return `<iframe 
+  width="100%" 
+  height="400" 
+  src="${url}" 
+  title="Embedded content" 
+  frameborder="0"
+></iframe>`;
+  });
+}
+
+/**
+ * Extract YouTube video ID from various URL formats
+ */
+function extractYouTubeId(url) {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/,
+    /youtube\.com\/v\/([^&\s?]+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/**
+ * Convert <table data-view="cards"> to Cards component
+ */
+function convertCards(content) {
+  const cardTableRegex = /<table\s+data-view="cards"[^>]*>([\s\S]*?)<\/table>/gi;
+
+  return content.replace(cardTableRegex, (match, tableContent) => {
+    // Extract rows from tbody
+    const tbodyMatch = tableContent.match(/<tbody>([\s\S]*?)<\/tbody>/i);
+    if (!tbodyMatch) return match;
+
+    const rows = [];
+    const rowRegex = /<tr>([\s\S]*?)<\/tr>/gi;
+    let rowMatch;
+
+    while ((rowMatch = rowRegex.exec(tbodyMatch[1])) !== null) {
+      const cells = [];
+      const cellRegex = /<td>([\s\S]*?)<\/td>/gi;
+      let cellMatch;
+
+      while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
+        cells.push(cellMatch[1].trim());
+      }
+
+      if (cells.length > 0) {
+        // First cell is title, second is link, third is cover image
+        const title = cells[0]?.replace(/<\/?strong>/g, '') || '';
+        const linkMatch = cells[1]?.match(/<a\s+href="([^"]+)"[^>]*>([^<]*)<\/a>/i);
+        const link = linkMatch ? linkMatch[1] : '';
+        const coverMatch = cells[2]?.match(/<a\s+href="([^"]+)"/i);
+        const cover = coverMatch ? coverMatch[1] : '';
+
+        rows.push({ title, link, cover });
+      }
+    }
+
+    if (rows.length === 0) return match;
+
+    const cardItems = rows.map(row => {
+      const href = row.link.replace('.md', '');
+      return `  <Card title="${row.title}" href="${href}" />`;
+    }).join('\n');
+
+    return `<CardGrid>\n${cardItems}\n</CardGrid>`;
+  });
+}
+
+/**
+ * Convert <figure><img> with width to styled image
+ */
+function convertFigures(content) {
+  // Pattern: <figure><img src="..." alt="..." width="..."><figcaption>...</figcaption></figure>
+  const figureRegex = /<figure>\s*<img\s+([^>]*)>\s*(?:<figcaption>([^<]*)<\/figcaption>)?\s*<\/figure>/gi;
+
+  return content.replace(figureRegex, (match, imgAttrs, caption) => {
+    const srcMatch = imgAttrs.match(/src="([^"]+)"/i);
+    const altMatch = imgAttrs.match(/alt="([^"]*)"/i);
+    const widthMatch = imgAttrs.match(/width="([^"]+)"/i);
+
+    if (!srcMatch) return match;
+
+    const src = fixAssetPath(srcMatch[1]);
+    const alt = altMatch ? altMatch[1] : (caption || '');
+    const width = widthMatch ? widthMatch[1] : '';
+
+    let style = '';
+    if (width) {
+      style = ` style={{ maxWidth: '${width}px' }}`;
+    }
+
+    const captionEl = caption ? `\n<figcaption>${caption}</figcaption>` : '';
+    
+    return `<figure>\n  <img src="${src}" alt="${alt}"${style} />${captionEl}\n</figure>`;
+  });
+}
+
+/**
+ * Convert <div align="..."> to styled div
+ */
+function convertAlignedDivs(content) {
+  const alignRegex = /<div\s+align="(\w+)">/gi;
+  
+  return content.replace(alignRegex, (match, align) => {
+    return `<div style={{ textAlign: '${align}' }}>`;
+  });
+}
+
+/**
+ * Convert <img data-size="line"> to inline image
+ */
+function convertInlineImages(content) {
+  const inlineImgRegex = /<img\s+([^>]*data-size="line"[^>]*)>/gi;
+
+  return content.replace(inlineImgRegex, (match, attrs) => {
+    const srcMatch = attrs.match(/src="([^"]+)"/i);
+    const altMatch = attrs.match(/alt="([^"]*)"/i);
+
+    if (!srcMatch) return match;
+
+    const src = fixAssetPath(srcMatch[1]);
+    const alt = altMatch ? altMatch[1] : '';
+
+    return `<img src="${src}" alt="${alt}" style={{ display: 'inline', height: '1.2em', verticalAlign: 'middle' }} />`;
+  });
+}
+
+/**
+ * Convert <mark style="color:..."> to styled span
+ */
+function convertMarks(content) {
+  const markRegex = /<mark\s+style="color:\s*([^"]+)">([\s\S]*?)<\/mark>/gi;
+
+  return content.replace(markRegex, (match, color, text) => {
+    // Remove semicolon if present in color value
+    const cleanColor = color.replace(/;$/, '');
+    return `<span style={{ color: '${cleanColor}' }}>${text}</span>`;
+  });
+}
+
+/**
+ * Convert [text](url "mention") to regular link
+ */
+function convertMentionLinks(content) {
+  const mentionRegex = /\[([^\]]+)\]\(([^)]+)\s+"mention"\)/g;
+
+  return content.replace(mentionRegex, (match, text, url) => {
+    // Remove .md extension for internal links
+    const cleanUrl = url.replace(/\.md$/, '');
+    return `[${text}](${cleanUrl})`;
+  });
+}
+
+/**
+ * Remove &#x20; HTML entities
+ */
+function removeHtmlEntities(content) {
+  return content.replace(/&#x20;/g, ' ');
+}
+
+/**
+ * Fix asset paths from GitBook format to Starlight format
+ */
+function fixAssetPath(originalPath) {
+  if (originalPath.includes('.gitbook/assets/')) {
+    // Convert to new assets path - use relative import
+    const filename = path.basename(originalPath);
+    return `~/assets/gitbook/${filename}`;
+  }
+  return originalPath;
+}
+
+/**
+ * Fix internal links - remove .md extension and adjust paths
+ */
+function fixInternalLinks(content) {
+  // Fix markdown links to .md files
+  const linkRegex = /\]\(([^)]+\.md)\)/g;
+  
+  return content.replace(linkRegex, (match, url) => {
+    // Don't modify external links
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return match;
+    }
+    // Remove .md extension
+    return `](${url.replace(/\.md$/, '')})`;
+  });
+}
+
+/**
+ * Process frontmatter - convert GitBook frontmatter to Starlight format
+ */
+function processFrontmatter(content, filePath) {
+  const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+  const match = content.match(frontmatterRegex);
+  
+  if (!match) {
+    // No frontmatter, add basic one
+    const title = extractTitleFromContent(content) || path.basename(filePath, '.md');
+    return `---\ntitle: "${title}"\n---\n\n${content}`;
+  }
+
+  const frontmatterRaw = match[1];
+  const body = content.slice(match[0].length);
+
+  // Parse YAML-style frontmatter more carefully
+  const fm = {};
+  let currentKey = null;
+  let currentValue = [];
+  
+  const lines = frontmatterRaw.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check if this is a new key (starts with word followed by colon)
+    const keyMatch = line.match(/^(\w+):\s*(.*)?$/);
+    
+    if (keyMatch && !line.startsWith('  ')) {
+      // Save previous key-value if exists
+      if (currentKey) {
+        fm[currentKey] = currentValue.length > 1 
+          ? currentValue.join('\n').trim() 
+          : currentValue[0]?.trim() || '';
+      }
+      
+      currentKey = keyMatch[1];
+      const value = keyMatch[2] || '';
+      
+      // Check for multiline indicators
+      if (value === '>-' || value === '|' || value === '>') {
+        currentValue = [];
+      } else {
+        currentValue = [value];
+      }
+    } else if (currentKey && (line.startsWith('  ') || line.trim() === '')) {
+      // Continuation of multiline value
+      currentValue.push(line.replace(/^  /, ''));
+    }
+  }
+  
+  // Save last key-value
+  if (currentKey) {
+    fm[currentKey] = currentValue.length > 1 
+      ? currentValue.join('\n').trim() 
+      : currentValue[0]?.trim() || '';
+  }
+
+  // Build new frontmatter
+  const newFm = [];
+  
+  // Title
+  if (!fm.title) {
+    const title = extractTitleFromContent(body) || path.basename(filePath, '.md');
+    newFm.push(`title: "${title}"`);
+  } else {
+    const title = fm.title.replace(/^["']|["']$/g, '');
+    newFm.push(`title: "${title}"`);
+  }
+
+  // Description
+  if (fm.description) {
+    const desc = fm.description.replace(/"/g, '\\"');
+    newFm.push(`description: "${desc}"`);
+  }
+
+  // Hidden pages
+  if (fm.hidden === 'true') {
+    newFm.push('draft: true');
+  }
+
+  // Icon (for sidebar) - comment out for now
+  if (fm.icon) {
+    newFm.push(`# icon: ${fm.icon}`);
+  }
+
+  return `---\n${newFm.join('\n')}\n---\n${body}`;
+}
+
+/**
+ * Extract title from markdown content (first # heading)
+ */
+function extractTitleFromContent(content) {
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  return titleMatch ? titleMatch[1].trim() : null;
+}
+
+/**
+ * Add required imports at the top of MDX file
+ */
+function addImports(content, usedComponents) {
+  const imports = [];
+  
+  if (usedComponents.has('Aside')) {
+    imports.push("import { Aside } from '@astrojs/starlight/components';");
+  }
+  if (usedComponents.has('Tabs') || usedComponents.has('TabItem')) {
+    imports.push("import { Tabs, TabItem } from '@astrojs/starlight/components';");
+  }
+  if (usedComponents.has('CardGrid') || usedComponents.has('Card')) {
+    imports.push("import { Card, CardGrid } from '@astrojs/starlight/components';");
+  }
+
+  if (imports.length === 0) return content;
+
+  // Insert imports after frontmatter
+  const frontmatterEnd = content.indexOf('---', 4);
+  if (frontmatterEnd === -1) {
+    return imports.join('\n') + '\n\n' + content;
+  }
+
+  const beforeImports = content.slice(0, frontmatterEnd + 3);
+  const afterImports = content.slice(frontmatterEnd + 3);
+
+  return beforeImports + '\n\n' + imports.join('\n') + afterImports;
+}
+
+/**
+ * Detect which components are used in content
+ */
+function detectUsedComponents(content) {
+  const components = new Set();
+  
+  if (content.includes('<Aside')) components.add('Aside');
+  if (content.includes('<Tabs')) components.add('Tabs');
+  if (content.includes('<TabItem')) components.add('TabItem');
+  if (content.includes('<CardGrid')) components.add('CardGrid');
+  if (content.includes('<Card ')) components.add('Card');
+  
+  return components;
+}
+
+// ============================================================================
+// MAIN CONVERTER
+// ============================================================================
+
+/**
+ * Convert a single markdown file
+ */
+function convertFile(content, filePath) {
+  let result = content;
+
+  // Apply all conversions in order
+  result = convertHints(result);
+  result = convertTabs(result);
+  result = convertEmbeds(result);
+  result = convertCards(result);
+  result = convertFigures(result);
+  result = convertAlignedDivs(result);
+  result = convertInlineImages(result);
+  result = convertMarks(result);
+  result = convertMentionLinks(result);
+  result = removeHtmlEntities(result);
+  result = fixInternalLinks(result);
+  result = processFrontmatter(result, filePath);
+
+  // Detect and add imports
+  const usedComponents = detectUsedComponents(result);
+  result = addImports(result, usedComponents);
+
+  return result;
+}
+
+/**
+ * Process all files in source directory
+ */
+async function processDirectory(sourceDir, outputDir) {
+  const absoluteSourceDir = path.resolve(__dirname, '..', sourceDir);
+  const absoluteOutputDir = path.resolve(__dirname, '..', outputDir);
+
+  console.log(`\n📁 Source: ${absoluteSourceDir}`);
+  console.log(`📁 Output: ${absoluteOutputDir}\n`);
+
+  // Check if source exists
+  if (!fs.existsSync(absoluteSourceDir)) {
+    console.error(`❌ Source directory not found: ${absoluteSourceDir}`);
+    console.log('\n💡 Make sure to clone the source repo first:');
+    console.log('   git clone https://github.com/vibe-and-pray/vectary-docs.git ../vectary-docs\n');
+    process.exit(1);
+  }
+
+  // Create output directory
+  fs.mkdirSync(absoluteOutputDir, { recursive: true });
+
+  // Process files recursively
+  await processDir(absoluteSourceDir, absoluteOutputDir, '');
+
+  console.log('\n✅ Conversion complete!\n');
+}
+
+async function processDir(sourceBase, outputBase, relativePath) {
+  const currentSource = path.join(sourceBase, relativePath);
+  const currentOutput = path.join(outputBase, relativePath);
+
+  const entries = fs.readdirSync(currentSource, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryRelPath = path.join(relativePath, entry.name);
+
+    // Skip excluded directories
+    if (entry.isDirectory() && CONFIG.excludeDirs.includes(entry.name)) {
+      console.log(`⏭️  Skipping: ${entryRelPath}`);
+      continue;
+    }
+
+    // Skip excluded files
+    if (entry.isFile() && CONFIG.excludeFiles.includes(entry.name)) {
+      console.log(`⏭️  Skipping: ${entryRelPath}`);
+      continue;
+    }
+
+    // Skip .gitbook directory (we'll copy assets separately)
+    if (entry.name === '.gitbook') {
+      await copyAssets(path.join(currentSource, entry.name, 'assets'), 
+                       path.resolve(outputBase, '..', 'assets', 'gitbook'));
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      fs.mkdirSync(path.join(currentOutput, entry.name), { recursive: true });
+      await processDir(sourceBase, outputBase, entryRelPath);
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      const sourcePath = path.join(currentSource, entry.name);
+      const outputPath = path.join(currentOutput, entry.name.replace(/\.md$/, '.mdx'));
+
+      try {
+        const content = fs.readFileSync(sourcePath, 'utf-8');
+        const converted = convertFile(content, entryRelPath);
+        
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        fs.writeFileSync(outputPath, converted, 'utf-8');
+        
+        console.log(`✅ ${entryRelPath}`);
+      } catch (error) {
+        console.error(`❌ Error processing ${entryRelPath}: ${error.message}`);
+      }
+    }
+  }
+}
+
+/**
+ * Copy assets from .gitbook/assets to src/assets/gitbook
+ */
+async function copyAssets(sourceDir, outputDir) {
+  if (!fs.existsSync(sourceDir)) {
+    console.log('⚠️  No .gitbook/assets directory found');
+    return;
+  }
+
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const files = fs.readdirSync(sourceDir);
+  for (const file of files) {
+    const sourcePath = path.join(sourceDir, file);
+    const outputPath = path.join(outputDir, file);
+
+    if (fs.statSync(sourcePath).isFile()) {
+      fs.copyFileSync(sourcePath, outputPath);
+    }
+  }
+
+  console.log(`📦 Copied ${files.length} assets to ${outputDir}`);
+}
+
+// ============================================================================
+// CLI
+// ============================================================================
+
+const args = process.argv.slice(2);
+const watchMode = args.includes('--watch');
+
+if (watchMode) {
+  console.log('👀 Watch mode enabled. Watching for changes...\n');
+  
+  // Initial conversion
+  await processDirectory(CONFIG.sourceDir, CONFIG.outputDir);
+  
+  // Watch for changes (requires chokidar)
+  try {
+    const chokidar = await import('chokidar');
+    const absoluteSourceDir = path.resolve(__dirname, '..', CONFIG.sourceDir);
+    
+    chokidar.default.watch(absoluteSourceDir, {
+      ignored: /(^|[\/\\])\../,
+      persistent: true
+    }).on('change', async (filePath) => {
+      if (filePath.endsWith('.md')) {
+        console.log(`\n🔄 File changed: ${filePath}`);
+        await processDirectory(CONFIG.sourceDir, CONFIG.outputDir);
+      }
+    });
+  } catch (e) {
+    console.log('⚠️  chokidar not installed. Run: npm install chokidar');
+  }
+} else {
+  await processDirectory(CONFIG.sourceDir, CONFIG.outputDir);
+}
