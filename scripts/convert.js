@@ -400,6 +400,17 @@ function removeHtmlEntities(content) {
 }
 
 /**
+ * Fix malformed bold text caused by HTML entities
+ * E.g., "**is **text" should become "**is** text"
+ */
+function fixMalformedBold(content) {
+  // Fix "**word **" pattern (space before closing **)
+  // This happens when &#x20; is decoded inside bold markers
+  // Add space after closing ** to separate from following content
+  return content.replace(/\*\*(\w+)\s+\*\*(?=<)/g, '**$1** ');
+}
+
+/**
  * Convert <pre><code> blocks to markdown code blocks
  */
 function convertPreCodeBlocks(content) {
@@ -515,16 +526,35 @@ function fixMarkdownImagePaths(content) {
  * Fix internal links - remove .md extension and adjust paths
  */
 function fixInternalLinks(content) {
-  // Fix markdown links to .md files
-  const linkRegex = /\]\(([^)]+\.md)\)/g;
-  
-  return content.replace(linkRegex, (match, url) => {
+  // Fix markdown links to .md files (with or without anchors)
+  const linkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
+
+  return content.replace(linkRegex, (match, url, anchor) => {
     // Don't modify external links
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return match;
     }
+
     // Remove .md extension
-    return `](${url.replace(/\.md$/, '')})`;
+    let cleanUrl = url.replace(/\.md$/, '');
+
+    // Fix anchors that reference tab titles (e.g., #green-dot)
+    // These don't work in Starlight, so point to the parent section instead
+    if (anchor) {
+      // Map known tab-title anchors to their parent section anchors
+      const tabAnchorMap = {
+        '#green-dot': '#project-tips',
+        '#order-of-workspaces': '#workspace-tips',
+        '#workspace-id': '#workspace-tips',
+        '#project-movement': '#project-tips',
+        '#project-selection': '#project-tips',
+      };
+
+      const mappedAnchor = tabAnchorMap[anchor.toLowerCase()] || anchor;
+      return `](${cleanUrl}${mappedAnchor})`;
+    }
+
+    return `](${cleanUrl})`;
   });
 }
 
@@ -720,6 +750,7 @@ function convertFile(content, filePath) {
   result = convertMarks(result);
   result = convertMentionLinks(result);
   result = removeHtmlEntities(result);
+  result = fixMalformedBold(result);
   result = convertPreCodeBlocks(result);
   result = escapeInlineCode(result);
   result = convertEscapedBrackets(result);
