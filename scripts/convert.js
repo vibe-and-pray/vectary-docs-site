@@ -525,9 +525,12 @@ function fixMarkdownImagePaths(content) {
 /**
  * Fix internal links - remove .md extension and adjust paths
  */
-function fixInternalLinks(content) {
+function fixInternalLinks(content, currentFilePath) {
   // Fix markdown links to .md files (with or without anchors)
   const linkRegex = /\]\(([^)]+\.md)(#[^)]+)?\)/g;
+
+  // Get current file name without extension for self-reference detection
+  const currentFileName = currentFilePath ? path.basename(currentFilePath, '.md') : '';
 
   return content.replace(linkRegex, (match, url, anchor) => {
     // Don't modify external links
@@ -537,6 +540,9 @@ function fixInternalLinks(content) {
 
     // Remove .md extension
     let cleanUrl = url.replace(/\.md$/, '');
+
+    // Get the linked file name
+    const linkedFileName = path.basename(cleanUrl);
 
     // Fix anchors that reference tab titles (e.g., #green-dot)
     // These don't work in Starlight, so point to the parent section instead
@@ -551,6 +557,12 @@ function fixInternalLinks(content) {
       };
 
       const mappedAnchor = tabAnchorMap[anchor.toLowerCase()] || anchor;
+
+      // If linking to the same file, use just the anchor
+      if (linkedFileName === currentFileName) {
+        return `](${mappedAnchor})`;
+      }
+
       return `](${cleanUrl}${mappedAnchor})`;
     }
 
@@ -757,7 +769,7 @@ function convertFile(content, filePath) {
   result = convertVoidTags(result);
   result = fixFiguresInLists(result);
   result = fixMarkdownImagePaths(result);
-  result = fixInternalLinks(result);
+  result = fixInternalLinks(result, filePath);
   result = processFrontmatter(result, filePath);
 
   // Detect and add imports
