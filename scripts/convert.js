@@ -471,9 +471,9 @@ function convertVoidTags(content) {
  */
 function fixAssetPath(originalPath) {
   if (originalPath.includes('.gitbook/assets/')) {
-    // Convert to new assets path - use relative import
+    // Convert to public assets path (works with base path)
     const filename = path.basename(originalPath);
-    return `~/assets/gitbook/${filename}`;
+    return `/vectary-docs-site/assets/gitbook/${filename}`;
   }
   return originalPath;
 }
@@ -487,14 +487,14 @@ function fixMarkdownImagePaths(content) {
   const imgWithBracketsRegex = /!\[([^\]]*)\]\(<([^>]*\.gitbook\/assets\/[^>]+)>\)/g;
   content = content.replace(imgWithBracketsRegex, (match, alt, src) => {
     const filename = path.basename(src);
-    return `![${alt}](~/assets/gitbook/${filename})`;
+    return `![${alt}](/vectary-docs-site/assets/gitbook/${filename})`;
   });
 
   // Pattern without angle brackets: ![...](...gitbook/assets/...)
   const imgRegex = /!\[([^\]]*)\]\(([^)]*\.gitbook\/assets\/[^)]+)\)/g;
   content = content.replace(imgRegex, (match, alt, src) => {
     const filename = path.basename(src);
-    return `![${alt}](~/assets/gitbook/${filename})`;
+    return `![${alt}](/vectary-docs-site/assets/gitbook/${filename})`;
   });
 
   return content;
@@ -775,9 +775,9 @@ async function processDir(sourceBase, outputBase, relativePath) {
 
     // Skip .gitbook directory (we'll copy assets separately)
     if (entry.name === '.gitbook') {
-      // Copy to src/assets/gitbook (not src/content/assets) to match ~/assets/gitbook path
+      // Copy to public/assets/gitbook for static serving
       await copyAssets(path.join(currentSource, entry.name, 'assets'),
-                       path.resolve(outputBase, '..', '..', 'assets', 'gitbook'));
+                       path.resolve(outputBase, '..', '..', '..', 'public', 'assets', 'gitbook'));
       continue;
     }
 
