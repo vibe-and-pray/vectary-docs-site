@@ -246,8 +246,13 @@ function extractYouTubeId(url) {
 
 /**
  * Convert <table data-view="cards"> to Cards component
+ * Note: This function is called BEFORE resolveLinks, so we store raw hrefs
+ * and mark them for later processing
  */
-function convertCards(content) {
+function convertCards(content, currentFilePath) {
+  const BASE_PATH = '/vectary-docs-site';
+  const currentDir = currentFilePath ? path.dirname(currentFilePath) : '';
+
   const cardTableRegex = /<table\s+data-view="cards"[^>]*>([\s\S]*?)<\/table>/gi;
 
   return content.replace(cardTableRegex, (match, tableContent) => {
@@ -272,21 +277,47 @@ function convertCards(content) {
         // First cell is title, second is link, third is cover image
         const title = cells[0]?.replace(/<\/?strong>/g, '') || '';
         const linkMatch = cells[1]?.match(/<a\s+href="([^"]+)"[^>]*>([^<]*)<\/a>/i);
-        const link = linkMatch ? linkMatch[1] : '';
+        const rawLink = linkMatch ? linkMatch[1] : '';
         const coverMatch = cells[2]?.match(/<a\s+href="([^"]+)"/i);
         const cover = coverMatch ? coverMatch[1] : '';
 
-        rows.push({ title, link, cover });
+        // Convert link to absolute path
+        let href = rawLink.replace(/\.md$/, '');
+        if (href && !href.startsWith('http') && !href.startsWith('/')) {
+          // Resolve relative path
+          const resolvedPath = path.normalize(path.join(currentDir, href));
+          href = BASE_PATH + '/' + resolvedPath.replace(/\\/g, '/');
+        }
+
+        // Convert cover image path
+        let coverUrl = '';
+        if (cover && cover.includes('.gitbook/assets/')) {
+          const filename = path.basename(cover);
+          coverUrl = BASE_PATH + '/assets/gitbook/' + filename;
+        }
+
+        rows.push({ title, href, coverUrl });
       }
     }
 
     if (rows.length === 0) return match;
 
+    // Generate LinkCards with cover images using custom HTML structure
     const cardItems = rows.map(row => {
-      const href = row.link.replace('.md', '');
-      return `  <Card title="${row.title}" href="${href}" />`;
+      if (row.coverUrl) {
+        return `<a href="${row.href}" class="card-link">
+  <div class="card-cover" style="background-image: url('${row.coverUrl}')"></div>
+  <div class="card-title">${row.title}</div>
+</a>`;
+      }
+      return `  <Card title="${row.title}" href="${row.href}" />`;
     }).join('\n');
 
+    // If we have covers, use custom grid; otherwise use CardGrid
+    const hasCover = rows.some(r => r.coverUrl);
+    if (hasCover) {
+      return `<div class="card-grid">\n${cardItems}\n</div>`;
+    }
     return `<CardGrid>\n${cardItems}\n</CardGrid>`;
   });
 }
@@ -829,7 +860,7 @@ function convertFile(content, filePath) {
   result = convertContentRefs(result);
   result = convertFileRefs(result);
   result = convertEmbeds(result);
-  result = convertCards(result);
+  result = convertCards(result, filePath);
   result = convertFigures(result);
   result = convertAlignedDivs(result);
   result = convertInlineImages(result);
