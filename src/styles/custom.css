@@ -142,3 +142,19 @@ iframe {
   font-weight: 600;
   font-size: 1rem;
 }
+
+/* Narrower right panel (TOC) */
+@media (min-width: 72rem) {
+  :root {
+    --sl-sidebar-width: 18rem;
+    --sl-content-width: 50rem;
+  }
+
+  starlight-toc {
+    width: 14rem;
+  }
+
+  .right-sidebar {
+    width: 14rem;
+  }
+}
