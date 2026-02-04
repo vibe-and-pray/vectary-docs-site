@@ -682,12 +682,18 @@ function processFrontmatter(content, filePath) {
   const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
   const match = content.match(frontmatterRegex);
   
+  // Check if this is an index file (README.md) in a subdirectory
+  const fileName = path.basename(filePath).toLowerCase();
+  const isIndexFile = fileName === 'readme.md' && path.dirname(filePath) !== '.';
+
   if (!match) {
     // No frontmatter, add basic one
     const title = extractTitleFromContent(content) || path.basename(filePath, '.md');
     // Remove H1 from content since it becomes the title
     const bodyContent = removeFirstH1(content);
-    return `---\ntitle: "${title}"\n---\n\n${bodyContent}`;
+    // Add sidebar label for index files
+    const sidebarLabel = isIndexFile ? `\nsidebar:\n  label: Overview` : '';
+    return `---\ntitle: "${title}"${sidebarLabel}\n---\n\n${bodyContent}`;
   }
 
   const frontmatterRaw = match[1];
@@ -792,6 +798,12 @@ function processFrontmatter(content, filePath) {
   // Icon (for sidebar) - comment out for now
   if (fm.icon) {
     newFm.push(`# icon: ${fm.icon}`);
+  }
+
+  // Add sidebar configuration for index files in subdirectories
+  // This makes the index page appear as "Overview" in the sidebar
+  if (isIndexFile) {
+    newFm.push(`sidebar:\n  label: Overview`);
   }
 
   return `---\n${newFm.join('\n')}\n---\n${bodyContent}`;
