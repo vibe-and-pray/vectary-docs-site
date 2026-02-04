@@ -20,6 +20,10 @@ export default defineConfig({
       ],
       sidebar: [
         {
+          label: 'Welcome to Vectary Docs',
+          link: '/',
+        },
+        {
           label: 'Getting Started',
           autogenerate: { directory: 'documentation/getting-started' },
         },
