@@ -50,7 +50,9 @@ function convertHints(content) {
     let body = innerContent;
     
     if (titleMatch) {
-      title = ` title="${titleMatch[1].trim()}"`;
+      // Escape quotes in title for JSX attribute
+      const escapedTitle = titleMatch[1].trim().replace(/"/g, '&quot;');
+      title = ` title="${escapedTitle}"`;
       body = innerContent.replace(/^[\s\n]*####\s*.+$/m, '');
     }
     
