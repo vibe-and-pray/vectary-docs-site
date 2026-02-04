@@ -176,6 +176,9 @@ nav.sidebar details summary span,
 }
 
 /* Prevent sidebar content shift when scrollbar appears */
+.sidebar-pane,
+#starlight__sidebar,
 .sidebar-content {
   scrollbar-gutter: stable;
+  overflow-y: auto;
 }
