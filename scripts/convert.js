@@ -365,16 +365,17 @@ function convertMarks(content) {
 
 /**
  * Resolve all internal links in content
- * Handles: markdown links, mention links, HTML links
+ * Converts all internal links to absolute paths starting with /vectary-docs-site/
  *
  * @param {string} content - File content
  * @param {string} currentFilePath - Path to current file (e.g., "documentation/design-process/background.md")
  */
 function resolveLinks(content, currentFilePath) {
-  // Determine current file's URL structure
-  const isIndex = path.basename(currentFilePath).toLowerCase() === 'readme.md';
+  const BASE_PATH = '/vectary-docs-site';
+
   const currentDir = path.dirname(currentFilePath);
   const currentFileName = path.basename(currentFilePath, '.md').toLowerCase();
+  const isIndex = currentFileName === 'readme';
 
   // Map of GitBook tab anchors to real section anchors
   const tabAnchorMap = {
@@ -386,7 +387,7 @@ function resolveLinks(content, currentFilePath) {
   };
 
   /**
-   * Resolve a link URL relative to current file
+   * Resolve a link URL to absolute path
    */
   function resolveUrl(rawUrl, anchor) {
     // Handle anchor-only links
@@ -400,15 +401,18 @@ function resolveLinks(content, currentFilePath) {
       return rawUrl + (anchor || '');
     }
 
-    // Handle absolute paths (starting with /)
-    if (rawUrl.startsWith('/')) {
-      const cleanUrl = rawUrl.replace(/\.md$/, '');
-      const mappedAnchor = anchor ? (tabAnchorMap[anchor.toLowerCase()] || anchor) : '';
-      return cleanUrl + mappedAnchor;
-    }
-
     // Map tab anchors
     const mappedAnchor = anchor ? (tabAnchorMap[anchor.toLowerCase()] || anchor) : '';
+
+    // Handle already absolute paths
+    if (rawUrl.startsWith('/')) {
+      const cleanUrl = rawUrl.replace(/\.md$/, '');
+      // Ensure it has base path
+      if (!cleanUrl.startsWith(BASE_PATH)) {
+        return BASE_PATH + cleanUrl + mappedAnchor;
+      }
+      return cleanUrl + mappedAnchor;
+    }
 
     // Remove .md extension and normalize ./ prefix
     let targetPath = rawUrl.replace(/\.md$/, '').replace(/^\.\//, '');
@@ -423,19 +427,7 @@ function resolveLinks(content, currentFilePath) {
       return mappedAnchor || '#';
     }
 
-    // Calculate the URL path for current file
-    // README.md -> folder URL (e.g., /folder)
-    // other.md -> file URL (e.g., /folder/other)
-    let currentUrlPath;
-    if (isIndex) {
-      // Index file: URL = directory path
-      currentUrlPath = currentDir;
-    } else {
-      // Regular file: URL = directory + filename (without extension)
-      currentUrlPath = path.join(currentDir, path.basename(currentFilePath, '.md'));
-    }
-
-    // Calculate target URL path
+    // Calculate absolute URL path
     // If target is README (index), URL is the folder
     // Otherwise URL is folder/filename
     let targetUrlPath;
@@ -446,21 +438,11 @@ function resolveLinks(content, currentFilePath) {
       targetUrlPath = resolvedTarget;
     }
 
-    // Calculate relative path from current URL to target URL
-    // For index files, we calculate from the directory itself
-    // For regular files, we calculate from the file's "parent" (since URL is /dir/file)
-    const baseForRelative = isIndex ? currentUrlPath : path.dirname(currentUrlPath);
-    const relativePath = path.relative(baseForRelative, targetUrlPath);
-
+    // Convert to absolute path with base
     // Convert backslashes to forward slashes (Windows compatibility)
-    let finalPath = relativePath.replace(/\\/g, '/');
+    const absolutePath = '/' + targetUrlPath.replace(/\\/g, '/');
 
-    // Ensure we don't have empty path
-    if (!finalPath) {
-      finalPath = '.';
-    }
-
-    return finalPath + mappedAnchor;
+    return BASE_PATH + absolutePath + mappedAnchor;
   }
 
   /**
