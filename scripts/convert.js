@@ -115,7 +115,8 @@ function convertContentRefs(content) {
  * Convert {% embed url="..." %} to appropriate iframe/embed
  */
 function convertEmbeds(content) {
-  const embedRegex = /\{%\s*embed\s+url="([^"]+)"\s*%\}/g;
+  // Support optional attributes after URL like fullWidth="true"
+  const embedRegex = /\{%\s*embed\s+url="([^"]+)"[^%]*%\}/g;
 
   return content.replace(embedRegex, (match, url) => {
     // YouTube
