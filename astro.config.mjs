@@ -97,14 +97,24 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Sharing & Exporting',
+          label: '3D Configurator',
           collapsed: true,
-          autogenerate: { directory: 'documentation/sharing-and-exporting' },
+          autogenerate: { directory: 'documentation/3d-configurator' },
         },
         {
-          label: 'Embedding',
+          label: 'Sharing & Exporting',
           collapsed: true,
-          autogenerate: { directory: 'documentation/embedding' },
+          autogenerate: { directory: 'documentation/sharing-exporting-embedding' },
+        },
+        {
+          label: 'Project Settings',
+          collapsed: true,
+          autogenerate: { directory: 'documentation/project-settings' },
+        },
+        {
+          label: 'Other',
+          collapsed: true,
+          autogenerate: { directory: 'documentation/other' },
         },
         {
           label: 'Model API',
